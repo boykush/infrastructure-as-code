@@ -1,0 +1,21 @@
+# Toolchain pinned with mise. CI installs these via jdx/mise-action.
+# Run `mise install` to set up locally (also resolves the shims).
+# Versions here are exact, so mise.lock (settings.lockfile) is off for now.
+[tools]
+terraform = "1.15.8"
+doctl = "1.166.0"
+# Pinned to the cluster's minor track: kubectl supports only ±1 minor of skew,
+# and a machine-wide 1.30 client is too old to talk to DOKS 1.36.
+kubectl = "1.36.3"
+
+# Tasks wrap the commands whose exact form is easy to forget. init/plan are run
+# directly (`mise exec -- terraform ...`); apply runs in CI on push to main.
+[tasks."tf:login"]
+description = "Log in to the HCP Terraform backend (once per machine)"
+run = "terraform login app.terraform.io"
+
+# doctl mints a context that re-authenticates through the CLI, unlike the
+# 7-day kubeconfig the DOKS API hands out. Name must match var.cluster_name.
+[tasks."k8s:kubeconfig"]
+description = "Merge the DOKS cluster context into ~/.kube/config"
+run = "doctl kubernetes cluster kubeconfig save boykush-cluster"
