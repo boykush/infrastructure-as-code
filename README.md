@@ -4,7 +4,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 
 ## ロードマップ
 
-- [ ] Terraform で DOKS クラスタを作る（`terraform/`）
+- [x] Terraform で DOKS クラスタを作る（`terraform/`）
 - [ ] Argo CD を入れて GitOps の口を作る（`kubernetes/`）
 - [ ] scraps remote MCP サーバーを Argo CD からデプロイ
 
