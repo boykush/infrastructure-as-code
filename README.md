@@ -2,12 +2,6 @@
 
 boykush の個人アプリケーションを載せる Kubernetes 基盤のリポジトリ。クラスタ（DigitalOcean Kubernetes / DOKS）を Terraform で作り、その上のアプリケーションは Argo CD で GitOps デプロイする。
 
-## ロードマップ
-
-- [x] Terraform で DOKS クラスタを作る（`terraform/`）
-- [ ] Argo CD を入れて GitOps の口を作る（`kubernetes/`）
-- [ ] scraps remote MCP サーバーを Argo CD からデプロイ
-
 ## クラスタ
 
 | 項目 | 値 | 補足 |
