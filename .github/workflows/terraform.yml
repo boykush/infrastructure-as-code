@@ -1,0 +1,90 @@
+name: Terraform
+
+# Runs only when something that affects a plan/apply changes: the Terraform
+# config and its provider lock (terraform/**), the toolchain pins, and this
+# workflow. A README-only or manifest-only PR skips the run.
+#
+# The pull_request and push triggers share one path list via a YAML anchor
+# (&tf-paths defines it, *tf-paths reuses it) so the two never drift.
+on:
+  pull_request:
+    branches: [main]
+    paths: &tf-paths
+      - "terraform/**"
+      - "mise.toml"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths: *tf-paths
+
+# Serialize runs so state operations never overlap (belt and braces alongside
+# the HCP state lock).
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: terraform
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # tfcmt plan/apply comments
+      issues: write # tfcmt labels
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Installs the toolchain pinned in mise.toml. mise installs the raw
+      # terraform binary (no stdout-capturing wrapper), which is what tfcmt
+      # needs to parse plan/apply output.
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      # Posts terraform plan/apply results as a PR comment (no github-script).
+      - name: Install tfcmt
+        env:
+          TFCMT_VERSION: v4.14.15
+        run: |
+          curl -fsSL -o /tmp/tfcmt.tar.gz \
+            "https://github.com/suzuki-shunsuke/tfcmt/releases/download/${TFCMT_VERSION}/tfcmt_linux_amd64.tar.gz"
+          tar -C /usr/local/bin -xzf /tmp/tfcmt.tar.gz tfcmt
+          tfcmt --version
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        env:
+          # Authenticates the `cloud` block against HCP Terraform (replaces
+          # setup-terraform's cli_config_credentials_token).
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        if: github.event_name == 'pull_request'
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: tfcmt plan -- terraform plan -input=false -no-color
+
+      - name: Terraform Apply
+        if: github.event_name == 'push'
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: tfcmt apply -- terraform apply -input=false -auto-approve -no-color

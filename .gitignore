@@ -1,0 +1,31 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files (state lives in HCP Terraform, never commit it)
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# .tfvars usually contain sensitive data
+*.tfvars
+*.tfvars.json
+
+# Override files are usually local-only
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration / credentials
+.terraformrc
+terraform.rc
+
+# Cluster credentials (fetch with `mise run k8s:kubeconfig`, never commit)
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# Keep .terraform.lock.hcl committed (do not ignore it)
