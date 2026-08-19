@@ -6,7 +6,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
 - `argocd/` — Argo CD 本体 + Image Updater。kustomize の remote base を tag で固定している。
-- `applications/` — Argo CD の Application 定義だけ。アプリ本体の manifest は各アプリの repo に置く（デプロイ対象はそのアプリの資産なので）。
+- `applications/` — アプリごとに `<name>.yaml`（Argo CD の Application）と `<name>/`（その manifest）を並べる。イメージのビルドは各アプリの repo が行い、ここにはその成果物を指す manifest だけが載る。
 
 ## Toolchain
 
@@ -50,5 +50,5 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **dex は replicas 0**。SSO を使わないので常駐させる意味がない。
 - **適用は server-side apply**（`kubectl apply -k argocd --server-side`）。Argo CD の CRD は client-side apply の annotation サイズ上限を超える。同じ理由で self-manage する Application にも `ServerSideApply=true` を付けてある。
 - **自己管理**: `applications/argocd.yaml` が `argocd/` を同期する。`prune: false` にしてあるのは、path を間違えたときに自分を消させないため。
-- **app of apps**: `applications/root.yaml` が `applications/` を recurse で同期する。アプリを増やす操作は「`applications/` に Application を1つ足す」だけ。
-- **Image Updater**: v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。git write-back を使う場合、書き込み先は Application の source repo（＝各アプリの repo）なので、そこへの書き込み credential をクラスタ内の Secret に置く必要がある。**その Secret は git に入れず `kubectl` で作る**。
+- **app of apps**: `applications/root.yaml` が `applications/` の**直下のファイルだけ**を同期する（`recurse: false`）。サブディレクトリは各アプリの manifest で、それは個々の Application が同期するため、root が拾うと二重管理になる。アプリを増やす操作は `<name>.yaml` と `<name>/` を足すこと。
+- **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。

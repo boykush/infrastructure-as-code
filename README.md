@@ -20,7 +20,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 | ディレクトリ | 中身 |
 | --- | --- |
 | `argocd/` | Argo CD 本体と Image Updater（kustomize の remote base を version 固定） |
-| `applications/` | Argo CD の Application 定義**のみ**。アプリ本体の manifest は各アプリのリポジトリに置く |
+| `applications/` | アプリごとに `<name>.yaml`（Application）と `<name>/`（manifest）。イメージのビルドは各アプリのリポジトリ側 |
 
 ### bootstrap（初回のみ）
 
