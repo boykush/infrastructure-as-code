@@ -56,7 +56,11 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## remote MCP サーバー（`applications/remote-mcp-server/`）
 
 - **リポジトリ間の分担**: image のビルドは boykush/wiki（wiki のコンテンツ + scraps バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。
-- **image の契約**: `ghcr.io/boykush/remote-mcp-server`、tag は可変の `main` 固定で digest だけが動く。`SCRAPS_DIRECTORY` は image 側で設定する（コンテンツの置き場所は wiki 側の都合なので、Deployment からは触らない）。GHCR の package は public でないと pull できない。
+- **image の契約**（boykush/wiki の `Dockerfile` と workflow が決めている側）:
+  - `ghcr.io/boykush/wiki-mcp-server`。可変の `main` と、`<scraps version>-<sha7>` の2つが push される。追うのは `main`。
+  - ENTRYPOINT が `scraps mcp serve --http` なので、**`args` に渡すのは listen アドレスだけ**。`mcp serve` から書くと二重になって起動しない。
+  - `SCRAPS_DIRECTORY=/wiki/scraps` は image 側で設定済み。コンテンツの置き場所は wiki 側の都合なので Deployment からは触らない。
+  - GHCR の package は public。
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
 - **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
 - **無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。Service は ClusterIP 止まりで、利用は port-forward。外部公開するなら前段に認証を置く。

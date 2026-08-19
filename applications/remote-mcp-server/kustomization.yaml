@@ -7,5 +7,5 @@ resources:
 
 # Image Updater rewrites this block, pinning the digest behind the tag.
 images:
-  - name: ghcr.io/boykush/remote-mcp-server
+  - name: ghcr.io/boykush/wiki-mcp-server
     newTag: main
