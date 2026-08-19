@@ -1,0 +1,14 @@
+# ClusterIP only: the scraps MCP server has no authentication, so it is reached
+# through `kubectl port-forward` rather than published to the internet.
+apiVersion: v1
+kind: Service
+metadata:
+  name: remote-mcp-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: remote-mcp-server
+  ports:
+    - name: http
+      port: 1113
+      targetPort: http

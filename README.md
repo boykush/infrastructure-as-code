@@ -32,6 +32,24 @@ mise exec -- kubectl apply -f applications/root.yaml
 
 以降は `applications/` にファイルを足せば root Application が拾う。
 
+### remote MCP サーバー
+
+[boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーとして載せている。イメージは wiki 側の CI が GHCR へ push し、新しい digest は Image Updater がこのリポジトリの `kustomization.yaml` に書き戻す。
+
+サーバーは認証を持たないので Service は ClusterIP のみ。利用は port-forward 経由。
+
+```sh
+mise exec -- kubectl -n remote-mcp-server port-forward svc/remote-mcp-server 1113:1113
+claude mcp add --transport http scraps http://127.0.0.1:1113/mcp
+```
+
+Image Updater の git write-back にはこのリポジトリへの push 権限が要る（Argo CD は読むだけなので別の credential）。Secret は git に入れず手元で作る。
+
+```sh
+mise exec -- kubectl -n argocd create secret generic image-updater-git-creds \
+  --from-literal=username=boykush --from-literal=password=<fine-grained PAT>
+```
+
 ### UI
 
 ```sh

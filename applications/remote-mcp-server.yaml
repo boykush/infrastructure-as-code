@@ -1,0 +1,32 @@
+# The image is built in boykush/wiki, but the manifests live here — so nothing
+# in either repository knows when a new image lands. Image Updater closes that
+# gap: it watches the registry and commits the new digest back to this repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: remote-mcp-server
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: scraps=ghcr.io/boykush/remote-mcp-server:main
+    # The tag stays "main" and only the digest moves, so digest is the strategy
+    # that can tell a rebuild apart from no change.
+    argocd-image-updater.argoproj.io/scraps.update-strategy: digest
+    # Write-back needs push access to this repository; Argo CD itself only ever
+    # reads it, so the credential is a separate secret created out of band.
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/image-updater-git-creds
+    argocd-image-updater.argoproj.io/write-back-target: kustomization
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/remote-mcp-server
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: remote-mcp-server
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
