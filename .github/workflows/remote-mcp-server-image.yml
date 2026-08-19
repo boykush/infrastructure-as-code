@@ -1,0 +1,58 @@
+name: remote-mcp-server image
+
+# The image is only the scraps binary, so it needs rebuilding when the
+# Dockerfile or the version below changes. PRs build without pushing; a push to
+# main publishes the tag.
+on:
+  pull_request:
+    branches: [main]
+    paths: &image-paths
+      - "applications/remote-mcp-server/Dockerfile"
+      - ".github/workflows/remote-mcp-server-image.yml"
+  push:
+    branches: [main]
+    paths: *image-paths
+
+concurrency:
+  group: remote-mcp-server-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/boykush/remote-mcp-server
+  # Tag and contents are the scraps release. Bump together with the image tag
+  # in applications/remote-mcp-server/deployment.yaml.
+  SCRAPS_VERSION: v1.1.0
+
+jobs:
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to GHCR
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: |
+          docker build \
+            --build-arg "SCRAPS_VERSION=${SCRAPS_VERSION}" \
+            --tag "${IMAGE}:${SCRAPS_VERSION}" \
+            applications/remote-mcp-server
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      - name: Push
+        if: github.event_name == 'push'
+        run: docker push "${IMAGE}:${SCRAPS_VERSION}"

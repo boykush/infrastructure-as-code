@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remote-mcp-server
+spec:
+  # One node, and the server holds no state worth spreading, so a single replica.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remote-mcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: remote-mcp-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # scraps needs its wiki directory to exist at startup, so the first clone
+      # has to finish before the server container starts.
+      initContainers:
+        - name: git-sync-init
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/boykush/wiki
+            - --root=/wiki
+            - --link=current
+            - --depth=1
+            - --one-time
+          volumeMounts:
+            - name: wiki
+              mountPath: /wiki
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      containers:
+        # Keeps pulling into the same root. scraps reads the wiki per request,
+        # so a pull is visible to the next tool call without a restart.
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/boykush/wiki
+            - --root=/wiki
+            - --link=current
+            - --depth=1
+            - --period=5m
+          volumeMounts:
+            - name: wiki
+              mountPath: /wiki
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+
+        - name: scraps
+          image: ghcr.io/boykush/remote-mcp-server:v1.1.0
+          args: [mcp, serve, --http, 0.0.0.0:1113]
+          # The wiki markdown lives under <repo>/scraps, matching what the wiki
+          # repository's own mise.toml sets for local runs.
+          env:
+            - name: SCRAPS_DIRECTORY
+              value: /wiki/current/scraps
+          ports:
+            - name: http
+              containerPort: 1113
+          # The MCP endpoint only answers POST, so readiness checks the socket.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+          volumeMounts:
+            - name: wiki
+              mountPath: /wiki
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: wiki
+          emptyDir: {}

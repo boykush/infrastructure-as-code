@@ -5,7 +5,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## レイアウト
 
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
-- `kubernetes/` — Argo CD と各アプリの manifest（未着手）。
+- `applications/` — クラスタに載せるアプリの manifest（kustomize）。Argo CD 導入後はここを同期させる。
+- Argo CD 本体の置き場は #2 で決める（未着手）。
 
 ## Toolchain
 
@@ -29,7 +30,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - 変更は PR 経由。PR で `terraform plan`（tfcmt がコメント）、main への push で `terraform apply`。
 - **ローカル apply はしない**。唯一の例外がクラスタの初回 bootstrap（CI の secret 登録より先にクラスタが要ったため）。
 - 残作業・TODO は **Issue で管理する**。README に書くのは現状の構成と手順だけで、作業項目のリストは置かない。
-- CI の path filter は `terraform/**` と toolchain の pin だけ。`kubernetes/` の manifest は Terraform の plan と無関係（Argo CD が同期する）ので走らせない。
+- Terraform CI の path filter は `terraform/**` と toolchain の pin だけ。`applications/` の manifest は plan と無関係（Argo CD が同期する）ので走らせない。イメージの build は `Dockerfile` を触ったときだけ走る別 workflow。
 
 ## DOKS の勘所
 
@@ -40,3 +41,11 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **destroy**: `destroy_all_associated_resources = true`。`type: LoadBalancer` の Service や PVC が作った LB / volume はクラスタとは別課金で、これが無いと destroy 後も残って課金され続ける。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
 - `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
+
+## remote MCP サーバー（`applications/remote-mcp-server/`）
+
+- **無認証**: `scraps mcp serve --http` は認証も TLS も持たず、公式にも「not meant to be exposed to a network」と書かれている。だから Service は ClusterIP 止まりで、利用は `kubectl port-forward`。外部公開したくなったら前段に認証を置く（Cloudflare Access / oauth2-proxy 等）。
+- **wiki の供給**: git-sync sidecar が [boykush/wiki](https://github.com/boykush/wiki)（public なので credential 不要）を5分ごとに pull し、`emptyDir` を共有する。scraps はリクエスト毎に wiki を読むので、pull がそのまま次の tool call に反映される（再起動不要）。初回だけ init container の `--one-time` で clone を待つ。
+- **`SCRAPS_DIRECTORY`**: wiki の markdown は repo 直下ではなく `<repo>/scraps` にある（wiki 側の `mise.toml` と同じ）。git-sync の symlink 込みで `/wiki/current/scraps`。
+- **イメージの version**: `ghcr.io/boykush/remote-mcp-server` の tag は中身の scraps release。上げるときは **workflow の `SCRAPS_VERSION` と `deployment.yaml` の image tag の2箇所**を揃える（Dockerfile の `ARG` に default は置いていない）。
+- **GHCR の package は初回 push で private になる**。private のままだと DOKS から pull できず `ImagePullBackOff` になるので、package の visibility を public にする（中身は OSS のバイナリだけ。imagePullSecret を持たずに済ませるための選択）。

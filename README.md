@@ -13,6 +13,27 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 | VPC | 専用 / `10.10.0.0/16` | 無料。`ip_range` は後から変更できない |
 | maintenance | 日曜 19:00 UTC | = 月曜 04:00 JST |
 
+## アプリケーション
+
+| ディレクトリ | 中身 |
+| --- | --- |
+| `applications/remote-mcp-server/` | scraps の remote MCP サーバー。wiki（[boykush/wiki](https://github.com/boykush/wiki)）は git-sync sidecar が5分ごとに pull する |
+
+Argo CD を入れるまでは kustomize で直接適用する。
+
+```sh
+mise exec -- kubectl apply -k applications/remote-mcp-server
+```
+
+scraps の MCP サーバーは認証を持たないため Service は ClusterIP のみで、利用は port-forward 経由。
+
+```sh
+mise exec -- kubectl -n remote-mcp-server port-forward svc/remote-mcp-server 1113:1113
+claude mcp add --transport http scraps http://127.0.0.1:1113/mcp
+```
+
+イメージ（`ghcr.io/boykush/remote-mcp-server`）は scraps のリリースバイナリを載せただけのもので、tag は scraps の version。ビルドと push は GH Actions が行う。
+
 ## Toolchain
 
 Terraform / doctl / kubectl を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
@@ -42,12 +63,21 @@ mise exec -- terraform plan
 - **`apply` はローカルで実行しない**——main への push で CI が行う。クラスタの初回 bootstrap だけは例外的にローカルから apply した。
 - kubeconfig は `mise run k8s:kubeconfig`（`doctl kubernetes cluster kubeconfig save`）で取る。context 名は `do-sgp1-boykush-cluster`。
 
-## CI（`.github/workflows/terraform.yml`）
+## CI
+
+`.github/workflows/terraform.yml`:
 
 | トリガ | 動作 |
 | --- | --- |
 | PR | `terraform plan`（tfcmt がコメント） |
 | push to main | `terraform apply` |
+
+`.github/workflows/remote-mcp-server-image.yml`（`Dockerfile` の変更時のみ）:
+
+| トリガ | 動作 |
+| --- | --- |
+| PR | イメージを build（push はしない） |
+| push to main | build して GHCR へ push |
 
 | secret | 用途 |
 | --- | --- |
