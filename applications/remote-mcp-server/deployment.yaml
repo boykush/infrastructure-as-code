@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remote-mcp-server
+spec:
+  # One node, and the wiki is baked into the image, so there is no state to
+  # spread across replicas.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remote-mcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: remote-mcp-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scraps
+          # Built in boykush/wiki: the scraps binary plus the wiki content, with
+          # SCRAPS_DIRECTORY baked in so the path stays that repository's business.
+          image: ghcr.io/boykush/wiki-mcp-server:main
+          # The entrypoint is already `scraps mcp serve --http`, so the argument
+          # is only the listen address.
+          args: ["0.0.0.0:1113"]
+          ports:
+            - name: http
+              containerPort: 1113
+          # The MCP endpoint only answers POST, so readiness checks the socket.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

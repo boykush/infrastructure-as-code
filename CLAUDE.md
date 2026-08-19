@@ -5,7 +5,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## レイアウト
 
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
-- `kubernetes/` — Argo CD と各アプリの manifest（未着手）。
+- `argocd/` — Argo CD 本体 + Image Updater。kustomize の remote base を tag で固定している。
+- `applications/` — アプリごとに `<name>.yaml`（Argo CD の Application）と `<name>/`（その manifest）を並べる。イメージのビルドは各アプリの repo が行い、ここにはその成果物を指す manifest だけが載る。
 
 ## Toolchain
 
@@ -41,3 +42,25 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **destroy**: `destroy_all_associated_resources = true`。`type: LoadBalancer` の Service や PVC が作った LB / volume はクラスタとは別課金で、これが無いと destroy 後も残って課金され続ける。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
 - `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
+
+## Argo CD
+
+- **version の固定**: `argocd/kustomization.yaml` の remote base の `?ref=` が version。上げるときはそこを書き換える（Image Updater も同様に `argocd/image-updater/`）。
+- **upstream は resource requests を持たない**。1ノード構成では scheduler が判断できないので、component ごとに patch で下限と memory の上限を付けている。memory が苦しくなったら `argocd-notifications-controller` と `argocd-applicationset-controller` を replicas 0 にする余地がある（どちらも今は使っていない）。
+- **dex は replicas 0**。SSO を使わないので常駐させる意味がない。
+- **適用は server-side apply**（`kubectl apply -k argocd --server-side`）。Argo CD の CRD は client-side apply の annotation サイズ上限を超える。同じ理由で self-manage する Application にも `ServerSideApply=true` を付けてある。
+- **自己管理**: `applications/argocd.yaml` が `argocd/` を同期する。`prune: false` にしてあるのは、path を間違えたときに自分を消させないため。
+- **app of apps**: `applications/root.yaml` が `applications/` の**直下のファイルだけ**を同期する（`recurse: false`）。サブディレクトリは各アプリの manifest で、それは個々の Application が同期するため、root が拾うと二重管理になる。アプリを増やす操作は `<name>.yaml` と `<name>/` を足すこと。
+- **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。
+
+## remote MCP サーバー（`applications/remote-mcp-server/`）
+
+- **リポジトリ間の分担**: image のビルドは boykush/wiki（wiki のコンテンツ + scraps バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。
+- **image の契約**（boykush/wiki の `Dockerfile` と workflow が決めている側）:
+  - `ghcr.io/boykush/wiki-mcp-server`。可変の `main` と、`<scraps version>-<sha7>` の2つが push される。追うのは `main`。
+  - ENTRYPOINT が `scraps mcp serve --http` なので、**`args` に渡すのは listen アドレスだけ**。`mcp serve` から書くと二重になって起動しない。
+  - `SCRAPS_DIRECTORY=/wiki/scraps` は image 側で設定済み。コンテンツの置き場所は wiki 側の都合なので Deployment からは触らない。
+  - GHCR の package は public。
+- **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
+- **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
+- **無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。Service は ClusterIP 止まりで、利用は port-forward。外部公開するなら前段に認証を置く。

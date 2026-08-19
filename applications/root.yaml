@@ -1,0 +1,23 @@
+# App of apps: every top-level file here is an Argo CD Application, so adding
+# one file is how an app gets deployed. Sync is deliberately non-recursive —
+# the subdirectories hold each app's own manifests, which its Application syncs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true

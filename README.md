@@ -13,6 +13,52 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 | VPC | 専用 / `10.10.0.0/16` | 無料。`ip_range` は後から変更できない |
 | maintenance | 日曜 19:00 UTC | = 月曜 04:00 JST |
 
+## Argo CD
+
+クラスタ上のアプリケーションは Argo CD（v3.5.1）で同期する。Argo CD 自身も Application として自己管理される。
+
+| ディレクトリ | 中身 |
+| --- | --- |
+| `argocd/` | Argo CD 本体と Image Updater（kustomize の remote base を version 固定） |
+| `applications/` | アプリごとに `<name>.yaml`（Application）と `<name>/`（manifest）。イメージのビルドは各アプリのリポジトリ側 |
+
+### bootstrap（初回のみ）
+
+```sh
+mise exec -- kubectl apply -k argocd --server-side
+mise exec -- kubectl -n argocd rollout status statefulset/argocd-application-controller
+mise exec -- kubectl apply -f applications/root.yaml
+```
+
+以降は `applications/` にファイルを足せば root Application が拾う。
+
+### remote MCP サーバー
+
+[boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーとして載せている。イメージは wiki 側の CI が GHCR へ push し、新しい digest は Image Updater がこのリポジトリの `kustomization.yaml` に書き戻す。
+
+サーバーは認証を持たないので Service は ClusterIP のみ。利用は port-forward 経由。
+
+```sh
+mise exec -- kubectl -n remote-mcp-server port-forward svc/remote-mcp-server 1113:1113
+claude mcp add --transport http scraps http://127.0.0.1:1113/mcp
+```
+
+Image Updater の git write-back にはこのリポジトリへの push 権限が要る（Argo CD は読むだけなので別の credential）。Secret は git に入れず手元で作る。
+
+```sh
+mise exec -- kubectl -n argocd create secret generic image-updater-git-creds \
+  --from-literal=username=boykush --from-literal=password=<fine-grained PAT>
+```
+
+### UI
+
+```sh
+mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:443
+mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+```
+
+`https://localhost:8080` に admin で入る。証明書は自己署名なので警告が出る。
+
 ## Toolchain
 
 Terraform / doctl / kubectl を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
