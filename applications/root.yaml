@@ -1,0 +1,23 @@
+# App of apps: everything in applications/ is an Argo CD Application, so adding
+# a file here is how an app gets deployed. Application bodies live in each
+# app's own repository; this directory only points at them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true

@@ -1,0 +1,23 @@
+# Argo CD manages its own manifests. prune stays off so a mistake in the path
+# cannot delete the controller that would have to fix it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      # The Argo CD CRDs exceed the annotation size limit of a client-side apply.
+      - ServerSideApply=true

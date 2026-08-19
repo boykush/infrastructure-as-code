@@ -5,7 +5,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## レイアウト
 
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
-- `kubernetes/` — Argo CD と各アプリの manifest（未着手）。
+- `argocd/` — Argo CD 本体 + Image Updater。kustomize の remote base を tag で固定している。
+- `applications/` — Argo CD の Application 定義だけ。アプリ本体の manifest は各アプリの repo に置く（デプロイ対象はそのアプリの資産なので）。
 
 ## Toolchain
 
@@ -41,3 +42,13 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **destroy**: `destroy_all_associated_resources = true`。`type: LoadBalancer` の Service や PVC が作った LB / volume はクラスタとは別課金で、これが無いと destroy 後も残って課金され続ける。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
 - `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
+
+## Argo CD
+
+- **version の固定**: `argocd/kustomization.yaml` の remote base の `?ref=` が version。上げるときはそこを書き換える（Image Updater も同様に `argocd/image-updater/`）。
+- **upstream は resource requests を持たない**。1ノード構成では scheduler が判断できないので、component ごとに patch で下限と memory の上限を付けている。memory が苦しくなったら `argocd-notifications-controller` と `argocd-applicationset-controller` を replicas 0 にする余地がある（どちらも今は使っていない）。
+- **dex は replicas 0**。SSO を使わないので常駐させる意味がない。
+- **適用は server-side apply**（`kubectl apply -k argocd --server-side`）。Argo CD の CRD は client-side apply の annotation サイズ上限を超える。同じ理由で self-manage する Application にも `ServerSideApply=true` を付けてある。
+- **自己管理**: `applications/argocd.yaml` が `argocd/` を同期する。`prune: false` にしてあるのは、path を間違えたときに自分を消させないため。
+- **app of apps**: `applications/root.yaml` が `applications/` を recurse で同期する。アプリを増やす操作は「`applications/` に Application を1つ足す」だけ。
+- **Image Updater**: v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。git write-back を使う場合、書き込み先は Application の source repo（＝各アプリの repo）なので、そこへの書き込み credential をクラスタ内の Secret に置く必要がある。**その Secret は git に入れず `kubectl` で作る**。
