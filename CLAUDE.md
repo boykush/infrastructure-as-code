@@ -53,9 +53,12 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **app of apps**: `applications/root.yaml` が `applications/` の**直下のファイルだけ**を同期する（`recurse: false`）。サブディレクトリは各アプリの manifest で、それは個々の Application が同期するため、root が拾うと二重管理になる。アプリを増やす操作は `<name>.yaml` と `<name>/` を足すこと。
 - **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。
 
-## remote MCP サーバー（`applications/remote-mcp-server/`）
+## MCP サーバー（`applications/remote-mcp-server/`）
 
-- **リポジトリ間の分担**: image のビルドは boykush/wiki（wiki のコンテンツ + scraps バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。
+- **1 Application、サーバーごとにディレクトリ**。`applications/remote-mcp-server/<name>/` が1つの MCP サーバーで、root の `kustomization.yaml` が `resources` で束ねる。共通しているのは「MCP サーバーである」ことだけなので、Application を分けずに namespace を共有している。増やす手順は README。
+- **`images:` は root の kustomization に置く**。Image Updater の `write-back-target: kustomization` は Application の `path` にある kustomization.yaml へ書くので、per-server のディレクトリに置くと書き戻し先とずれる。
+- **リソース名はサーバー名**（`wiki` であって `remote-mcp-server` ではない）。namespace が既に「MCP サーバー群」を意味しているので、名前が担うのは「どれか」の方。
+- **リポジトリ間の分担**: image のビルドは各アプリの repo（wiki なら boykush/wiki が wiki のコンテンツ + scraps バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。
 - **image の契約**（boykush/wiki の `Dockerfile` と workflow が決めている側）:
   - `ghcr.io/boykush/wiki-mcp-server`。可変の `main` と、`<scraps version>-<sha7>` の2つが push される。追うのは `main`。
   - ENTRYPOINT が `scraps mcp serve --http` なので、**`args` に渡すのは listen アドレスだけ**。`mcp serve` から書くと二重になって起動しない。
@@ -63,7 +66,13 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
   - GHCR の package は public。
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
 - **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
-- **公開は Cloudflare Tunnel、認証は無し**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。
+- **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。
+- **scraps は Host ヘッダを検証する**。rmcp（`StreamableHttpService`）の DNS リバインディング対策で、許可されるのは localhost 系のみ。公開ホスト名で叩くと 403 `Forbidden: Host header is not allowed` になるので、Cloudflare の route 側で HTTP Host Header を `localhost` に差し替えている（既定の許可リストは `localhost` / `127.0.0.1` / `::1`）。**回避策であって正解ではない**——scraps に許可ホストを渡す口ができたら外す（boykush/scraps に issue あり）。
+
+## Cloudflare Tunnel（`applications/cloudflared/`）
+
+- **クラスタの出口であって、アプリの一部ではない**。だから MCP サーバーとは別の Application / namespace（`cloudflared`）にしてある。1本の tunnel が全ホスト名を捌くので、公開するものが増えても `cloudflared` は1つのまま。
 - **なぜ tunnel で、LB でないか**: `cloudflared` がクラスタ内から dial out するので Service は ClusterIP のまま、ノードの public IP には何も開かず、DO の Load Balancer（$12/月〜）も増えない。NodePort は DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所としては採らなかった。
-- **tunnel の設定は git の外**: remotely-managed tunnel なので hostname → Service の対応は Cloudflare のダッシュボード側にある。おかげでドメインが repo に載らない代わりに、ルーティングだけは GitOps の外。token は Secret `remote-mcp-server/cloudflared-tunnel-token`（key は `token`）で、Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
-- **`cloudflared` の tag は手で上げる**: Image Updater が追うのは Application の image-list にある scraps だけ。
+- **設定は git の外**: remotely-managed tunnel なので hostname → Service の対応は Cloudflare のダッシュボード側にある。おかげでドメインが repo に載らない代わりに、ルーティングだけは GitOps の外。Service URL は namespace を跨ぐので **FQDN**（`<name>.remote-mcp-server.svc.cluster.local:<port>`）で書く。
+- **token は Secret `cloudflared/cloudflared-tunnel-token`**（key は `token`）。Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
+- **`cloudflared` の tag は手で上げる**: Image Updater が追うのは image-list を持つ Application だけで、この Application は持っていない。

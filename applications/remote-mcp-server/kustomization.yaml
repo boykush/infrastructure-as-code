@@ -1,14 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# One directory per MCP server. Adding a server means adding its directory here
+# and its image below — nothing else in this repository has to know about it.
 resources:
-  - deployment.yaml
-  - service.yaml
-  - cloudflared.yaml
+  - wiki
 
-# Image Updater rewrites this block, pinning the digest behind the tag. Only
-# the scraps image is listed in the Application's image-list, so cloudflared's
-# tag is left to be bumped by hand.
+# Image Updater rewrites this block, pinning each digest behind its tag. It
+# writes to the kustomization.yaml at the Application's path, which is this
+# file, so the images stay here rather than in the per-server directories.
 images:
   - name: ghcr.io/boykush/wiki-mcp-server
     newTag: main

@@ -1,18 +1,21 @@
+# The MCP server for boykush/wiki. Named for the wiki rather than for MCP,
+# because everything in this namespace is an MCP server — the name has to say
+# which one.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: remote-mcp-server
+  name: wiki
 spec:
   # One node, and the wiki is baked into the image, so there is no state to
   # spread across replicas.
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: remote-mcp-server
+      app.kubernetes.io/name: wiki
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: remote-mcp-server
+        app.kubernetes.io/name: wiki
     spec:
       securityContext:
         runAsNonRoot: true

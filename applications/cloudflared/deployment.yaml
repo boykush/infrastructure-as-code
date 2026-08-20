@@ -1,8 +1,12 @@
-# What replaces `kubectl port-forward`. The MCP server itself stays on a
-# ClusterIP: cloudflared dials *out* to Cloudflare and traffic comes back down
-# that connection, so nothing listens on the node's public IP and no billable
-# DigitalOcean load balancer is created. TLS and the public hostname are
+# The cluster's way out to the internet. cloudflared dials *out* to Cloudflare
+# and traffic comes back down that connection, so no Service has to leave
+# ClusterIP, nothing listens on the node's public IP, and no billable
+# DigitalOcean load balancer is created. TLS and the public hostnames are
 # Cloudflare's half of the tunnel.
+#
+# It lives in its own Application rather than beside an app because one tunnel
+# carries every hostname: adding a service to it is a route in the Cloudflare
+# dashboard, not another cloudflared.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +29,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cloudflared
+          # Image Updater only follows what an Application's image-list names,
+          # and this Application has no such annotation, so this tag is bumped
+          # by hand.
           image: cloudflare/cloudflared:2026.8.2
           # The entrypoint is `cloudflared --no-autoupdate`, so the binary will
           # not replace itself and drift from the tag pinned above.
@@ -36,11 +43,11 @@ spec:
             - 0.0.0.0:2000
             - run
           env:
-            # A remotely-managed tunnel: the hostname-to-Service mapping lives
-            # in the Cloudflare dashboard rather than here, which is what lets
-            # this repository stay free of the domain. The token is the whole
-            # configuration, and it is a credential — like the Image Updater's
-            # git creds it is created with kubectl and never committed.
+            # A remotely-managed tunnel: which hostname maps to which Service
+            # lives in the Cloudflare dashboard rather than here, which is what
+            # lets this repository stay free of the domain. The token is the
+            # whole configuration, and it is a credential — like the Image
+            # Updater's git creds it is created with kubectl, never committed.
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -64,8 +71,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-          # Proxying one person's wiki reads; the floor is what keeps the
-          # scheduler honest on a node that already carries Argo CD.
+          # Proxying one person's reads; the floor is what keeps the scheduler
+          # honest on a node that already carries Argo CD.
           resources:
             requests:
               cpu: 25m
