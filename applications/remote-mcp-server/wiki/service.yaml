@@ -1,0 +1,15 @@
+# ClusterIP only: the internet reaches this through the Cloudflare Tunnel that
+# `applications/cloudflared` runs, which connects from inside the cluster. The
+# tunnel addresses this as wiki.remote-mcp-server.svc.cluster.local:1113.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wiki
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: wiki
+  ports:
+    - name: http
+      port: 1113
+      targetPort: http

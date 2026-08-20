@@ -34,31 +34,46 @@ mise exec -- kubectl apply -f applications/root.yaml
 
 ### remote MCP サーバー
 
-[boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーとして載せている。イメージは wiki 側の CI が GHCR へ push し、新しい digest は Image Updater がこのリポジトリの `kustomization.yaml` に書き戻す。
+MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは [boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` だけ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。
 
-公開は Cloudflare Tunnel 経由。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。
+公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
 ```sh
-claude mcp add --transport http scraps https://<tunnel のホスト名>/mcp
+claude mcp add --transport http wiki https://<wiki のホスト名>/mcp
 ```
 
 **この MCP は無認証で公開している**——wiki の内容は元から公開で、scraps の MCP は読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
 
+#### MCP サーバーを増やす
+
+1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く
+2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
+3. `applications/remote-mcp-server.yaml` の `image-list` に `<name>=<image>` を足し、`<name>.update-strategy` を決める
+4. Cloudflare のダッシュボードで public hostname を1つ足す（下記）
+
 #### tunnel のセットアップ（初回のみ）
 
-hostname → Service の対応は Cloudflare のダッシュボード側にある（remotely-managed tunnel）。Zero Trust の Networks → Tunnels で cloudflared タイプの tunnel を作り、public hostname に `http://remote-mcp-server:1113` を向ける。token は credential なので git に入れず手元で Secret にする。
+hostname → Service の対応は Cloudflare のダッシュボード側にある（remotely-managed tunnel）。Zero Trust の Networks → Tunnels で cloudflared タイプの tunnel を作り、public hostname の Service URL に **クラスタ内から見た FQDN** を書く。
+
+```
+http://<name>.remote-mcp-server.svc.cluster.local:<port>
+```
+
+`cloudflared` は別 namespace に居るので短縮名では引けない。token は credential なので git に入れず手元で Secret にする。
 
 ```sh
-mise exec -- kubectl -n remote-mcp-server create secret generic cloudflared-tunnel-token \
+mise exec -- kubectl -n cloudflared create secret generic cloudflared-tunnel-token \
   --from-literal=token=<tunnel token>
 ```
 
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
 
+**scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。許可されるのは localhost 系だけなので、公開ホスト名のままでは 403 `Forbidden: Host header is not allowed` になる。route の Additional application settings → HTTP Settings → HTTP Host Header に `localhost:<port>` を入れて回避している。scraps 側に許可ホストを渡す口ができたらこの設定は外せる。
+
 port-forward も従来どおり使える。tunnel を疑うときの切り分けに。
 
 ```sh
-mise exec -- kubectl -n remote-mcp-server port-forward svc/remote-mcp-server 1113:1113
+mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 ```
 
 Image Updater の git write-back にはこのリポジトリへの push 権限が要る（Argo CD は読むだけなので別の credential）。Secret は git に入れず手元で作る。

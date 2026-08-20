@@ -1,0 +1,27 @@
+# The Cloudflare Tunnel that publishes services to the internet. Its own
+# Application because the tunnel is cluster-level plumbing: one cloudflared
+# carries every hostname, so it outlives any single app that happens to be
+# behind it today.
+#
+# It will not start until the tunnel token exists as a Secret in this namespace
+# — that is a credential, so it is created with kubectl and never committed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/cloudflared
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cloudflared
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
