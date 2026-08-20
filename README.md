@@ -68,7 +68,7 @@ mise exec -- kubectl -n cloudflared create secret generic cloudflared-tunnel-tok
 
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
 
-**scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。許可されるのは localhost 系だけなので、公開ホスト名のままでは 403 `Forbidden: Host header is not allowed` になる。route の Additional application settings → HTTP Settings → HTTP Host Header に `localhost:<port>` を入れて回避している。scraps 側に許可ホストを渡す口ができたらこの設定は外せる。
+**scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。許可されるのは localhost 系だけなので、公開ホスト名のままでは 403 `Forbidden: Host header is not allowed` になる。route の Additional application settings → HTTP Settings → HTTP Host Header に `localhost` を入れて回避している（rmcp の既定の許可リストは `localhost` / `127.0.0.1` / `::1`）。scraps 側に許可ホストを渡す口ができたらこの設定は外せる。
 
 port-forward も従来どおり使える。tunnel を疑うときの切り分けに。
 
