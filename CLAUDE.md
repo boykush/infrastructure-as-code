@@ -67,7 +67,9 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
 - **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。
-- **scraps は Host ヘッダを検証する**。rmcp（`StreamableHttpService`）の DNS リバインディング対策で、許可されるのは localhost 系のみ。公開ホスト名で叩くと 403 `Forbidden: Host header is not allowed` になるので、Cloudflare の route 側で HTTP Host Header を `localhost` に差し替えている（既定の許可リストは `localhost` / `127.0.0.1` / `::1`）。**回避策であって正解ではない**——scraps に許可ホストを渡す口ができたら外す（boykush/scraps に issue あり）。
+- **scraps は Host ヘッダを検証する**。rmcp の DNS リバインディング対策で、既定の許可リストは `localhost` / `127.0.0.1` / `::1`。公開ホスト名を通すには Deployment の `--allowed-host` に渡す（scraps v1.2.0 以降。loopback は置き換えでなく追加なので port-forward も生きる）。**Cloudflare 側の HTTP Host Header 書き換えは使わない**——一時期の回避策で、`--allowed-host` が入った時点で不要。
+- **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスは scraps 側で `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
+- **この値は public repo の manifest に載る**。ドメインを git の外に置く方針より、回避策を消して契約を1箇所に書く方を取った結果。
 
 ## Cloudflare Tunnel（`applications/cloudflared/`）
 
