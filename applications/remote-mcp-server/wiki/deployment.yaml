@@ -25,10 +25,17 @@ spec:
         - name: scraps
           # Built in boykush/wiki: the scraps binary plus the wiki content, with
           # SCRAPS_DIRECTORY baked in so the path stays that repository's business.
+          # The tag here is only what the kustomization's images block matches
+          # on; what actually runs is the digest pinned there.
           image: ghcr.io/boykush/wiki-mcp-server:main
-          # The entrypoint is already `scraps mcp serve --http`, so the argument
-          # is only the listen address.
-          args: ["0.0.0.0:1113"]
+          # The entrypoint is already `scraps mcp serve --http`, so the first
+          # argument is the listen address. The second names the Host header the
+          # tunnel forwards under: scraps validates it (rmcp's DNS rebinding
+          # protection) and would otherwise answer 403 to everything public.
+          args:
+            - "0.0.0.0:1113"
+            - "--allowed-host"
+            - "wiki-mcp.boykush.com"
           ports:
             - name: http
               containerPort: 1113

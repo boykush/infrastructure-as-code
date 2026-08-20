@@ -9,6 +9,12 @@ resources:
 # Image Updater rewrites this block, pinning each digest behind its tag. It
 # writes to the kustomization.yaml at the Application's path, which is this
 # file, so the images stay here rather than in the per-server directories.
+#
+# The digests below are pinned by hand for now: the write-back credential
+# (Secret argocd/image-updater-git-creds) does not exist in the cluster yet, so
+# nothing has been updating them. Bumping one means editing this file until it
+# does.
 images:
+  # ghcr.io/boykush/wiki-mcp-server:main, also tagged v1.2.0-930e4ef.
   - name: ghcr.io/boykush/wiki-mcp-server
-    newTag: main
+    digest: sha256:c3fbdcac0aec1549fcbbca650bba6dcab59ac2db8854fa866ba246a284c3fba5
