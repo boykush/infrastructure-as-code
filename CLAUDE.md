@@ -63,4 +63,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
   - GHCR の package は public。
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
 - **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
-- **無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。Service は ClusterIP 止まりで、利用は port-forward。外部公開するなら前段に認証を置く。
+- **公開は Cloudflare Tunnel、認証は無し**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。
+- **なぜ tunnel で、LB でないか**: `cloudflared` がクラスタ内から dial out するので Service は ClusterIP のまま、ノードの public IP には何も開かず、DO の Load Balancer（$12/月〜）も増えない。NodePort は DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所としては採らなかった。
+- **tunnel の設定は git の外**: remotely-managed tunnel なので hostname → Service の対応は Cloudflare のダッシュボード側にある。おかげでドメインが repo に載らない代わりに、ルーティングだけは GitOps の外。token は Secret `remote-mcp-server/cloudflared-tunnel-token`（key は `token`）で、Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
+- **`cloudflared` の tag は手で上げる**: Image Updater が追うのは Application の image-list にある scraps だけ。

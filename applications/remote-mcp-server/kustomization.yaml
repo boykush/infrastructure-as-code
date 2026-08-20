@@ -4,8 +4,11 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
+  - cloudflared.yaml
 
-# Image Updater rewrites this block, pinning the digest behind the tag.
+# Image Updater rewrites this block, pinning the digest behind the tag. Only
+# the scraps image is listed in the Application's image-list, so cloudflared's
+# tag is left to be bumped by hand.
 images:
   - name: ghcr.io/boykush/wiki-mcp-server
     newTag: main
