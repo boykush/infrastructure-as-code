@@ -5,8 +5,8 @@
 # Cloudflare's half of the tunnel.
 #
 # It lives in its own Application rather than beside an app because one tunnel
-# carries every hostname: adding a service to it is a route in the Cloudflare
-# dashboard, not another cloudflared.
+# carries every hostname: adding a service to it is a route in terraform/, not
+# another cloudflared.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,11 +43,11 @@ spec:
             - 0.0.0.0:2000
             - run
           env:
-            # A remotely-managed tunnel: which hostname maps to which Service
-            # lives in the Cloudflare dashboard rather than here, which is what
-            # lets this repository stay free of the domain. The token is the
-            # whole configuration, and it is a credential — like the Image
-            # Updater's git creds it is created with kubectl, never committed.
+            # A remotely-managed tunnel: the routing table lives on
+            # Cloudflare's side, put there by terraform/cloudflare.tf rather
+            # than by this Deployment, so the token is the connector's entire
+            # configuration. It is also a credential — like the Image Updater's
+            # git creds it is created with kubectl, never committed.
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:
