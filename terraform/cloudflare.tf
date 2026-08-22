@@ -1,15 +1,15 @@
 # Zone and account IDs are read back from the domain name rather than written
 # down, so neither identifier lands in this public repository. Costs the API
-# token one extra permission (Zone: Zone Read).
+# token one extra permission (Zone: Zone Read), and every plan carries a
+# deprecation warning about an attribute of the result nothing here reads —
+# referencing the zone at all is enough to raise it.
 data "cloudflare_zones" "this" {
   name = var.domain
 }
 
 # Sensitive so that tfcmt, which echoes plan output into pull request comments
 # here, does not print what the lookup above exists to keep out of this public
-# repository — the same reason cluster_id is sensitive in outputs.tf. Taking the
-# two fields rather than the whole zone object also keeps the plan clear of a
-# deprecation warning for the permissions attribute alongside them.
+# repository — the same reason cluster_id is sensitive in outputs.tf.
 locals {
   zone_id    = sensitive(one(data.cloudflare_zones.this.result).id)
   account_id = sensitive(one(data.cloudflare_zones.this.result).account.id)
