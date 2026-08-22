@@ -5,8 +5,11 @@ data "cloudflare_zones" "this" {
   name = var.domain
 }
 
+# Marked sensitive so that tfcmt, which echoes plan output into pull request
+# comments here, does not print the two IDs the lookup above exists to keep out
+# of this public repository. Same reason cluster_id is sensitive in outputs.tf.
 locals {
-  zone       = one(data.cloudflare_zones.this.result)
+  zone       = sensitive(one(data.cloudflare_zones.this.result))
   account_id = local.zone.account.id
 }
 
@@ -51,7 +54,7 @@ resource "cloudflare_dns_record" "tunnel" {
   zone_id = local.zone.id
   name    = "${each.key}.${var.domain}"
   type    = "CNAME"
-  content = "${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com"
+  content = sensitive("${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com")
   proxied = true
   ttl     = 1
   comment = "Managed by Terraform (infrastructure-as-code)"
