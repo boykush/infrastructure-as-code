@@ -51,21 +51,28 @@ claude mcp add --transport http wiki https://wiki-mcp.boykush.com/mcp
 1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く
 2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
 3. `applications/remote-mcp-server.yaml` の `image-list` に `<name>=<image>` を足し、`<name>.update-strategy` を決める
-4. Cloudflare のダッシュボードで public hostname を1つ足す（下記）
+4. `terraform/variables.tf` の `tunnel_routes` に `subdomain` と `service` を1つ足す
 
-#### tunnel のセットアップ（初回のみ）
+#### tunnel の設定
 
-hostname → Service の対応は Cloudflare のダッシュボード側にある（remotely-managed tunnel）。Zero Trust の Networks → Tunnels で cloudflared タイプの tunnel を作り、public hostname の Service URL に **クラスタ内から見た FQDN** を書く。
+tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `terraform/cloudflare.tf` にある（remotely-managed tunnel なので、route は Cloudflare 側に置かれた設定を Terraform が書く）。編集するのは `terraform/variables.tf` の `tunnel_routes` だけ。
 
+```hcl
+{
+  subdomain = "wiki-mcp"
+  service   = "http://wiki.remote-mcp-server.svc.cluster.local:1113"
+}
 ```
-http://<name>.remote-mcp-server.svc.cluster.local:<port>
-```
 
-`cloudflared` は別 namespace に居るので短縮名では引けない。token は credential なので git に入れず手元で Secret にする。
+`service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
+
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read)。
+
+token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
 ```sh
 mise exec -- kubectl -n cloudflared create secret generic cloudflared-tunnel-token \
-  --from-literal=token=<tunnel token>
+  --from-literal=token="$(mise exec -- terraform -chdir=terraform output -raw tunnel_token)"
 ```
 
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
@@ -134,6 +141,7 @@ mise exec -- terraform plan
 | --- | --- |
 | `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
+| `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel と DNS） |
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
