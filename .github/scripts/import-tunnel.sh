@@ -4,7 +4,7 @@
 # apply builds a second tunnel and collides on the DNS record. Every ID is read
 # back from the API so none has to be written down. Imports and one state edit
 # only — this never applies.
-set -euo pipefail
+set -Eeuo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 TF_DIR="$REPO_ROOT/terraform"
