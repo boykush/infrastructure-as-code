@@ -1,6 +1,7 @@
-# Knobs for the single DOKS cluster this repository owns. The defaults are the
-# live configuration; nothing overrides them (no tfvars, no CI variables), so a
-# change here is the change. Anything not listed is fixed policy in main.tf.
+# Knobs for the single DOKS cluster this repository owns and for the Cloudflare
+# tunnel in front of it. The defaults are the live configuration; nothing
+# overrides them (no tfvars, no CI variables), so a change here is the change.
+# Anything not listed is fixed policy in main.tf / cloudflare.tf.
 
 variable "region" {
   type        = string
@@ -39,5 +40,31 @@ variable "node_count" {
   validation {
     condition     = var.node_count >= 1
     error_message = "node_count must be at least 1."
+  }
+}
+
+variable "domain" {
+  type        = string
+  description = "Zone the tunnel publishes under. Also how zone_id and account_id are resolved, so it has to match the zone name in Cloudflare exactly."
+  default     = "boykush.com"
+}
+
+variable "tunnel_routes" {
+  type = list(object({
+    subdomain = string
+    service   = string
+  }))
+  description = "Public hostnames the tunnel serves, one per entry. service is the in-cluster URL cloudflared dials; it crosses namespaces, so it has to be the FQDN form http://<svc>.<namespace>.svc.cluster.local:<port>."
+
+  default = [
+    {
+      subdomain = "wiki-mcp"
+      service   = "http://wiki.remote-mcp-server.svc.cluster.local:1113"
+    },
+  ]
+
+  validation {
+    condition     = length(var.tunnel_routes) == length(distinct([for route in var.tunnel_routes : route.subdomain]))
+    error_message = "Each subdomain can appear once: a second entry would collide on the DNS record."
   }
 }

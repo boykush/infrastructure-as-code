@@ -26,3 +26,13 @@ output "cluster_version" {
 # kube_config is deliberately not exported: the token it embeds expires after
 # 7 days, so a copied file silently stops working. Fetch a fresh one with
 # `mise run k8s:kubeconfig` (doctl mints a long-lived context).
+
+# The connector's whole configuration, and a credential: this is what the
+# Secret cloudflared reads holds. Sensitive because tfcmt echoes plan output
+# into pull request comments on this public repository. Read it locally with
+# `terraform output -raw tunnel_token` when creating that Secret.
+output "tunnel_token" {
+  description = "Token the cloudflared connector authenticates the tunnel with."
+  value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.this.token
+  sensitive   = true
+}
