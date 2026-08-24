@@ -29,9 +29,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cloudflared
-          # Image Updater only follows what an Application's image-list names,
-          # and this Application has no such annotation, so this tag is bumped
-          # by hand.
+          # Image Updater only follows Applications an ImageUpdater CR names,
+          # and no CR names this one, so this tag is bumped by hand.
           image: cloudflare/cloudflared:2026.8.2
           # The entrypoint is `cloudflared --no-autoupdate`, so the binary will
           # not replace itself and drift from the tag pinned above.

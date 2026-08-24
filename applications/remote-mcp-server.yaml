@@ -4,23 +4,13 @@
 # one Application rather than one per server.
 #
 # The images are built in the apps' own repositories, so nothing on either side
-# knows when a new one lands. Image Updater closes that gap: it watches the
-# registry and commits the new digest back to this repo. Adding a server means
-# adding it to image-list here, with its own alias and strategy.
+# knows when a new one lands. Image Updater closes that gap; what it follows and
+# where it writes back is declared alongside the manifests, in imageupdater.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: remote-mcp-server
   namespace: argocd
-  annotations:
-    argocd-image-updater.argoproj.io/image-list: wiki=ghcr.io/boykush/wiki-mcp-server:main
-    # The tag stays "main" and only the digest moves, so digest is the strategy
-    # that can tell a rebuild apart from no change.
-    argocd-image-updater.argoproj.io/wiki.update-strategy: digest
-    # Write-back needs push access to this repository; Argo CD itself only ever
-    # reads it, so the credential is a separate secret created out of band.
-    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/image-updater-git-creds
-    argocd-image-updater.argoproj.io/write-back-target: kustomization
 spec:
   project: default
   source:

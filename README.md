@@ -34,7 +34,7 @@ mise exec -- kubectl apply -f applications/root.yaml
 
 ### remote MCP サーバー
 
-MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは [boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` だけ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。
+MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは [boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` だけ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。何を追うかは `applications/remote-mcp-server/imageupdater.yaml`（`ImageUpdater` CR）で決める——v1.x は Application の annotation を読まない。
 
 公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
@@ -50,7 +50,7 @@ claude mcp add --transport http wiki https://wiki-mcp.boykush.com/mcp
 
 1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く
 2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
-3. `applications/remote-mcp-server.yaml` の `image-list` に `<name>=<image>` を足し、`<name>.update-strategy` を決める
+3. `applications/remote-mcp-server/imageupdater.yaml` の `images` に `alias` / `imageName` / `updateStrategy` を1つ足す
 4. `terraform/variables.tf` の `tunnel_routes` に `subdomain` と `service` を1つ足す
 
 #### tunnel の設定
@@ -92,12 +92,20 @@ port-forward も従来どおり使える。tunnel を疑うときの切り分け
 mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 ```
 
-Image Updater の git write-back にはこのリポジトリへの push 権限が要る（Argo CD は読むだけなので別の credential）。Secret は git に入れず手元で作る。
+Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset（`boykush/github-management` が張る Require pull request / Required check: zizmor）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id を両 ruleset の bypass actor に足す。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
+
+credential は git に入れず手元で Secret にする。
 
 ```sh
 mise exec -- kubectl -n argocd create secret generic image-updater-git-creds \
-  --from-literal=username=boykush --from-literal=password=<fine-grained PAT>
+  --from-literal=githubAppID=<App ID> \
+  --from-literal=githubAppInstallationID=<Installation ID> \
+  --from-literal=githubAppPrivateKey="$(cat <app>.private-key.pem)"
 ```
+
+`githubAppID` に入れるのは **App ID**（数値）。GitHub は JWT の `iss` に Client ID を使うことを推奨しているが、Image Updater は base 10 で parse するので Client ID を入れると `invalid value in field githubAppID` で落ちる。ruleset の bypass actor に足す `actor_id` も同じ App ID。
+
+Secret ができるまで Image Updater は新しい digest を見つけても書き戻せない。Pod は落ちず、`could not get creds for repo` がログに出続けるだけなので、digest が動かないときはまずここを見る。
 
 ### UI
 

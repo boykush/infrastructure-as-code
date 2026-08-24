@@ -1,0 +1,32 @@
+# What Image Updater follows, and where it writes the result. Since v1.0 this is
+# a CR instead of annotations on the Application; the annotations are only read
+# when useAnnotations is set. It sits in argocd because the controller watches
+# its own namespace only, and a CR can select only Applications beside it.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: remote-mcp-server
+  namespace: argocd
+spec:
+  writeBackConfig:
+    # Pushing to main needs a credential Argo CD does not have — it only reads
+    # this repository. The secret is created out of band, and holds a GitHub App
+    # rather than a PAT: main's rulesets take only an App as a bypass actor.
+    method: git:secret:image-updater-git-creds
+    gitConfig:
+      branch: main
+      # Resolves to the kustomization.yaml at the Application's path.
+      writeBackTarget: kustomization
+  applicationRefs:
+    - namePattern: remote-mcp-server
+      images:
+        - alias: wiki
+          imageName: ghcr.io/boykush/wiki-mcp-server:main
+          commonUpdateSettings:
+            # The tag never moves off "main", so only the digest can tell a
+            # rebuild apart from no change.
+            updateStrategy: digest
+          manifestTargets:
+            kustomize:
+              # The entry in that kustomization's images list to rewrite.
+              name: ghcr.io/boykush/wiki-mcp-server

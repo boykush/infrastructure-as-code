@@ -51,7 +51,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **適用は server-side apply**（`kubectl apply -k argocd --server-side`）。Argo CD の CRD は client-side apply の annotation サイズ上限を超える。同じ理由で self-manage する Application にも `ServerSideApply=true` を付けてある。
 - **自己管理**: `applications/argocd.yaml` が `argocd/` を同期する。`prune: false` にしてあるのは、path を間違えたときに自分を消させないため。
 - **app of apps**: `applications/root.yaml` が `applications/` の**直下のファイルだけ**を同期する（`recurse: false`）。サブディレクトリは各アプリの manifest で、それは個々の Application が同期するため、root が拾うと二重管理になる。アプリを増やす操作は `<name>.yaml` と `<name>/` を足すこと。
-- **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。v1.x は Application の annotation に加えて `ImageUpdater` CRD でも設定できる。
+- **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。
+- **v1.x の設定は `ImageUpdater` CR だけ**。Application の annotation は `useAnnotations` を立てない限り読まれず、CR が1つも無いと controller は「対象なし」を回し続ける（v1.0.0 で annotation ベースから移行済み）。CR は `applications/remote-mcp-server/imageupdater.yaml` に置き、**namespace は `argocd`**——controller は自分の namespace しか見ず、CR が選べるのは隣に居る Application だけ。
 
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
@@ -65,7 +66,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
   - `SCRAPS_DIRECTORY=/wiki/scraps` は image 側で設定済み。コンテンツの置き場所は wiki 側の都合なので Deployment からは触らない。
   - GHCR の package は public。
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
-- **git write-back の credential**: Secret `argocd/image-updater-git-creds`（`username` / `password`）を **`kubectl` で手元から作る**。git には入れない。この repo への push 権限が要るので、Argo CD の read 用とは別物。fine-grained PAT をこの repo に絞るのが無難。
+- **git write-back の credential は GitHub App**（`githubAppID` / `githubAppInstallationID` / `githubAppPrivateKey`）。Secret `argocd/image-updater-git-creds` を **`kubectl` で手元から作る**。git には入れない。**PAT では main に push できない**——`boykush/github-management` が張る ruleset（Require pull request / Required check: zizmor）の bypass actor になれるのは App だけなので、専用 App を作って両 ruleset の bypass に足す。Argo CD の read 用 credential とは別物。
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。
 - **scraps は Host ヘッダを検証する**。rmcp の DNS リバインディング対策で、既定の許可リストは `localhost` / `127.0.0.1` / `::1`。公開ホスト名を通すには Deployment の `--allowed-host` に渡す（scraps v1.2.0 以降。loopback は置き換えでなく追加なので port-forward も生きる）。**Cloudflare 側の HTTP Host Header 書き換えは使わない**——一時期の回避策で、`--allowed-host` が入った時点で不要。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスは scraps 側で `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
@@ -79,4 +80,4 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **zone / account ID は commit しない**: `data.cloudflare_zones` に `var.domain` を渡して両方引いている。API token に Zone: Zone (Read) が要るのはこのため（他は Account: Cloudflare Tunnel (Edit) と Zone: DNS (Edit)）。
 - **アプリを増やすと2箇所**: `applications/` の manifest（`--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
 - **token は Secret `cloudflared/cloudflared-tunnel-token`**（key は `token`）。Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
-- **`cloudflared` の tag は手で上げる**: Image Updater が追うのは image-list を持つ Application だけで、この Application は持っていない。
+- **`cloudflared` の tag は手で上げる**: Image Updater が追うのは `ImageUpdater` CR に名指しされた Application だけで、この Application は名指しされていない。
