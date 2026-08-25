@@ -1,20 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# One directory per MCP server. Adding a server means adding its directory here
-# and its image below — nothing else in this repository has to know about it.
+# One directory per MCP server, plus the rule that keeps their images current.
+# Adding a server means adding its directory here and its image below.
 resources:
   - wiki
+  - imageupdater.yaml
 
 # Image Updater rewrites this block, pinning each digest behind its tag. It
 # writes to the kustomization.yaml at the Application's path, which is this
 # file, so the images stay here rather than in the per-server directories.
-#
-# The digests below are pinned by hand for now: the write-back credential
-# (Secret argocd/image-updater-git-creds) does not exist in the cluster yet, so
-# nothing has been updating them. Bumping one means editing this file until it
-# does.
 images:
-  # ghcr.io/boykush/wiki-mcp-server:main, also tagged v1.2.0-930e4ef.
+  # ghcr.io/boykush/wiki-mcp-server:main, also tagged v1.2.0-430cc8e.
   - name: ghcr.io/boykush/wiki-mcp-server
-    digest: sha256:c3fbdcac0aec1549fcbbca650bba6dcab59ac2db8854fa866ba246a284c3fba5
+    digest: sha256:9c2d623c9787e799b97c7c93507f000c1ef94a84b774b3f6c3d98cd0e7c0eaea
