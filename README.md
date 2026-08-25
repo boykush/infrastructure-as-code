@@ -68,13 +68,6 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read)。
 
-ダッシュボードで先に作ってしまったものを Terraform に取り込むには `.github/scripts/import-tunnel.sh`。ID は API から引くので引数は要らず、既に state にあるものは飛ばす。手元でも、Actions の **Tunnel Import**（`workflow_dispatch`）からでも同じものが走る。
-
-```sh
-read -rs CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
-.github/scripts/import-tunnel.sh
-```
-
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
 ```sh
@@ -164,12 +157,7 @@ mise exec -- terraform plan
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel と DNS） |
 | `IMAGE_UPDATER_APP_PRIVATE_KEY` | Image Updater の GitHub App（id 2つは variable） |
 
-手動実行の workflow が2つある。どちらも書き込みを伴うので push では起動しない。
-
-| workflow | 動作 |
-| --- | --- |
-| **Tunnel Import** | `.github/scripts/import-tunnel.sh` を走らせ、ダッシュボードで作られた Cloudflare のリソースを state に取り込む |
-| **Image Updater Credential** | Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する |
+手動実行の workflow は **Image Updater Credential**（`workflow_dispatch`）の1つだけ。Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
