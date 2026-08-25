@@ -100,8 +100,10 @@ credential は git に入れず手元で Secret にする。
 mise exec -- kubectl -n argocd create secret generic image-updater-git-creds \
   --from-literal=githubAppID=<App ID> \
   --from-literal=githubAppInstallationID=<Installation ID> \
-  --from-literal=githubAppPrivateKey="$(cat <app>.private-key.pem)"
+  --from-file=githubAppPrivateKey=<app>.private-key.pem
 ```
+
+private key はファイルのまま渡す（`--from-literal="$(cat …)"` だと argv に載って `ps` から見え、shell の履歴にも残る）。
 
 `githubAppID` に入れるのは **App ID**（数値）。GitHub は JWT の `iss` に Client ID を使うことを推奨しているが、Image Updater は base 10 で parse するので Client ID を入れると `invalid value in field githubAppID` で落ちる。ruleset の bypass actor に足す `actor_id` も同じ App ID。
 
