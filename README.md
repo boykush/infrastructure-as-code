@@ -94,16 +94,19 @@ mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 
 Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset（`boykush/github-management` が張る Require pull request / Required check: zizmor）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id を両 ruleset の bypass actor に足す。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
 
-credential は git に入れず手元で Secret にする。
+credential をクラスタに入れるのは Actions の **Image Updater Credential**（`workflow_dispatch`）。手元に DO の PAT を持たなくてよく、鍵を替えたときもクラスタを作り直したときも同じ workflow を回すだけで戻る。
+
+先に一度だけ App の3つの値を登録する。private key だけが secret で、2つの id は識別子なので variable にしてある。
 
 ```sh
-mise exec -- kubectl -n argocd create secret generic image-updater-git-creds \
-  --from-literal=githubAppID=<App ID> \
-  --from-literal=githubAppInstallationID=<Installation ID> \
-  --from-file=githubAppPrivateKey=<app>.private-key.pem
+gh variable set IMAGE_UPDATER_APP_ID --body 4703313
+gh variable set IMAGE_UPDATER_APP_INSTALLATION_ID --body <Installation ID>
+gh secret set IMAGE_UPDATER_APP_PRIVATE_KEY < <app>.private-key.pem
 ```
 
-private key はファイルのまま渡す（`--from-literal="$(cat …)"` だと argv に載って `ps` から見え、shell の履歴にも残る）。
+```sh
+gh workflow run image-updater-credential.yml
+```
 
 `githubAppID` に入れるのは **App ID**（数値）。GitHub は JWT の `iss` に Client ID を使うことを推奨しているが、Image Updater は base 10 で parse するので Client ID を入れると `invalid value in field githubAppID` で落ちる。ruleset の bypass actor に足す `actor_id` も同じ App ID。
 
@@ -159,8 +162,14 @@ mise exec -- terraform plan
 | `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel と DNS） |
+| `IMAGE_UPDATER_APP_PRIVATE_KEY` | Image Updater の GitHub App（id 2つは variable） |
 
-手動実行の workflow が1つある。**Tunnel Import**（`workflow_dispatch`）は `.github/scripts/import-tunnel.sh` を走らせ、ダッシュボードで作られた Cloudflare のリソースを state に取り込む。state を書くので push では起動しない。
+手動実行の workflow が2つある。どちらも書き込みを伴うので push では起動しない。
+
+| workflow | 動作 |
+| --- | --- |
+| **Tunnel Import** | `.github/scripts/import-tunnel.sh` を走らせ、ダッシュボードで作られた Cloudflare のリソースを state に取り込む |
+| **Image Updater Credential** | Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する |
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
