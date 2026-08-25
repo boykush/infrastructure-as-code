@@ -11,6 +11,7 @@ resources:
 # writes to the kustomization.yaml at the Application's path, which is this
 # file, so the images stay here rather than in the per-server directories.
 images:
-  # ghcr.io/boykush/wiki-mcp-server:main, also tagged v1.2.0-430cc8e.
   - name: ghcr.io/boykush/wiki-mcp-server
-    digest: sha256:9c2d623c9787e799b97c7c93507f000c1ef94a84b774b3f6c3d98cd0e7c0eaea
+    digest: sha256:f25598afa32c436df7f4ef6bd54214e319bb0e8e1206f3b526e5e76ae26aee33
+    newName: ghcr.io/boykush/wiki-mcp-server
+    newTag: main
