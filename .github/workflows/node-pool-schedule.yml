@@ -1,0 +1,110 @@
+name: Node Pool Schedule
+
+# Parks the worker node overnight, since it is the only billed resource in the
+# cluster. Dispatch takes the same path as the schedule, so a manual run both
+# tests the thing and recovers a night that failed to resume.
+on:
+  schedule:
+    - cron: "5 15 * * *" # 00:05 JST, park
+    - cron: "35 23 * * *" # 08:35 JST, resume
+  workflow_dispatch:
+    inputs:
+      direction:
+        description: "park = 0 nodes, resume = 1 node"
+        required: true
+        type: choice
+        options:
+          - park
+          - resume
+
+# park and resume must never overlap, and a queued run is worth keeping:
+# dropping a resume would leave the endpoint down until the next morning.
+concurrency:
+  group: node-pool-schedule
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CLUSTER: boykush-cluster
+  NODE_POOL: default
+
+jobs:
+  scale:
+    name: Scale
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # doctl and kubectl come from mise.toml, the same pins the rest of the repo uses.
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      # Nothing else separates the two cron entries, so the schedule string is
+      # what picks the direction when a human did not.
+      - name: Resolve direction
+        env:
+          INPUT_DIRECTION: ${{ inputs.direction }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_DIRECTION}" ]; then
+            direction="${INPUT_DIRECTION}"
+          elif [ "${SCHEDULE}" = "5 15 * * *" ]; then
+            direction="park"
+          else
+            direction="resume"
+          fi
+          if [ "${direction}" = "park" ]; then
+            count=0
+          else
+            count=1
+          fi
+          {
+            echo "DIRECTION=${direction}"
+            echo "COUNT=${count}"
+          } >> "${GITHUB_ENV}"
+          echo "::notice::${direction}: setting the node pool to ${count} node(s)"
+
+      # The cluster id is masked before doctl can print it: this repository is
+      # public, and the id is what addresses the cluster in the API.
+      - name: Scale the node pool
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get "${CLUSTER}" --format ID --no-header)"
+          doctl kubernetes cluster node-pool update "${CLUSTER}" "${NODE_POOL}" --count "${COUNT}"
+
+      # A resume that quietly did nothing costs a whole day of the MCP endpoint.
+      # A Ready node is not enough on its own: the pods still have to land and
+      # pull images, so the gate is what actually puts the wiki back online.
+      - name: Wait for the endpoint to come back
+        if: env.DIRECTION == 'resume'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get "${CLUSTER}" --format ID --no-header)"
+          doctl kubernetes cluster kubeconfig save "${CLUSTER}" --expiry-seconds 3600
+          echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
+          joined=""
+          for _ in $(seq 1 40); do
+            if [ "$(kubectl get nodes --no-headers 2>/dev/null | wc -l)" -ge 1 ]; then
+              joined="yes"
+              break
+            fi
+            sleep 15
+          done
+          if [ -z "${joined}" ]; then
+            echo "::error::no node joined within 10 minutes"
+            exit 1
+          fi
+          kubectl wait --for=condition=Ready node --all --timeout=300s
+          kubectl -n cloudflared rollout status deployment/cloudflared --timeout=600s
+          kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=600s

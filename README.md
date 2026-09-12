@@ -8,10 +8,10 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 | --- | --- | --- |
 | region | `sgp1`（Singapore） | DO に東京リージョンは無く、日本から最も近い |
 | Kubernetes | `1.36` 系 | patch は DO の auto-upgrade 任せ。minor は `kubernetes_version_prefix` で固定 |
-| node pool | `s-2vcpu-4gb` × 1 | $24/月。Argo CD + DOKS の system pod が載る実質の下限 |
+| node pool | `s-2vcpu-4gb` × 1 | 連続稼働で $24/月。Argo CD + DOKS の system pod が載る実質の下限。夜間は 0 台に落とす |
 | control plane | 非 HA | 無料。HA にすると +$40/月 |
 | VPC | 専用 / `10.10.0.0/16` | 無料。`ip_range` は後から変更できない |
-| maintenance | 日曜 19:00 UTC | = 月曜 04:00 JST |
+| maintenance | 日曜 04:00 UTC | = 日曜 13:00 JST。夜間停止の時間帯を避けてある |
 
 ## Argo CD
 
@@ -157,10 +157,36 @@ mise exec -- terraform plan
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel と DNS） |
 | `IMAGE_UPDATER_APP_PRIVATE_KEY` | Image Updater の GitHub App（id 2つは variable） |
 
-手動実行の workflow は **Image Updater Credential**（`workflow_dispatch`）の1つだけ。Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。
+**Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
+## 夜間停止（`.github/workflows/node-pool-schedule.yml`）
+
+worker node を毎晩 0 台に落として朝に戻す。課金対象は node だけなので、止めている間は課金されない。
+
+| トリガ | cron（UTC） | JST | 動作 |
+| --- | --- | --- | --- |
+| schedule | `5 15 * * *` | 00:05 | node pool を 0 に |
+| schedule | `35 23 * * *` | 08:35 | node pool を 1 に戻し、配信が戻るまで待つ |
+| workflow_dispatch | | | `park` / `resume` を選んで即実行 |
+
+- **停止中は `wiki-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- resume は node の Ready だけでなく `cloudflared` と `wiki` の rollout まで待ってから緑にする。朝の失敗を握り潰すと MCP が丸一日落ちるため。
+- 08:35 に戻すのは GitHub の schedule 遅延を見込んだ余裕。cron は定刻を保証しない。
+- `node_count` は Terraform の `ignore_changes` 対象。main への apply がこの workflow と競合しない。
+- 止めたくない日は Actions の UI から workflow を disable する。
+- schedule は repo が 60 日無活動だと自動停止するが、Image Updater の commit が入るので実質起きない。
+
 ## 費用
 
-課金されるのは worker node（$24/月）だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。使わない期間は `terraform destroy` で止められる——`destroy_all_associated_resources = true` なので、クラスタが作った LoadBalancer / volume も一緒に消える。
+課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。
+
+node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
+
+| 稼働 | 課金時間 | ノード代 |
+| --- | --- | --- |
+| 連続（30 日） | 672（上限） | $24.00 |
+| 夜間停止 8.5h/日（30 日） | 465 | $16.61 |
+
+outbound 転送は月 4,000 GiB まで無料で、超過分が $0.01/GiB——従量なのはここだけ。使わない期間は `terraform destroy` で完全に止められる——`destroy_all_associated_resources = true` なので、クラスタが作った LoadBalancer / volume も一緒に消える。
