@@ -1,0 +1,42 @@
+name: Node Pool Park
+
+# Takes the worker node to 0. It is the only billed resource in the cluster and
+# it is billed per second, so the bill only moves by not running it.
+on:
+  schedule:
+    - cron: "5 15 * * *" # 00:05 JST
+  workflow_dispatch:
+
+# Shared with Node Pool Resume so the two can never overlap. A queued run is
+# kept rather than dropped: losing a resume would cost a whole day.
+concurrency:
+  group: node-pool
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  park:
+    name: Park
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # doctl comes from mise.toml, the same pin the rest of the repo uses.
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      # The cluster id is masked before doctl can print it: this repository is
+      # public, and the id is what addresses the cluster in the API.
+      - name: Scale the node pool to 0
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
+          doctl kubernetes cluster node-pool update boykush-cluster default --count 0

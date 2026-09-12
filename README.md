@@ -161,15 +161,16 @@ mise exec -- terraform plan
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
-## 夜間停止（`.github/workflows/node-pool-schedule.yml`）
+## 夜間停止（`node-pool-park.yml` / `node-pool-resume.yml`）
 
 worker node を毎晩 0 台に落として朝に戻す。課金対象は node だけなので、止めている間は課金されない。
 
-| トリガ | cron（UTC） | JST | 動作 |
+| workflow | cron（UTC） | JST | 動作 |
 | --- | --- | --- | --- |
-| schedule | `5 15 * * *` | 00:05 | node pool を 0 に |
-| schedule | `35 23 * * *` | 08:35 | node pool を 1 に戻し、配信が戻るまで待つ |
-| workflow_dispatch | | | `park` / `resume` を選んで即実行 |
+| **Node Pool Park** | `5 15 * * *` | 00:05 | node pool を 0 に |
+| **Node Pool Resume** | `35 23 * * *` | 08:35 | 1 に戻し、配信が戻るまで待つ |
+
+やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
 - **停止中は `wiki-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
 - resume は node の Ready だけでなく `cloudflared` と `wiki` の rollout まで待ってから緑にする。朝の失敗を握り潰すと MCP が丸一日落ちるため。
