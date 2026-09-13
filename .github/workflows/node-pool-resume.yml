@@ -4,7 +4,7 @@ name: Node Pool Resume
 # the half of the pair that can fail in a way worth noticing.
 on:
   schedule:
-    - cron: "35 23 * * *" # 08:35 JST, early enough to absorb GitHub's schedule drift
+    - cron: "15 23 * * *" # 08:15 JST, see the README for where the margin went
   workflow_dispatch:
 
 # Shared with Node Pool Park so the two can never overlap. A queued run is kept
