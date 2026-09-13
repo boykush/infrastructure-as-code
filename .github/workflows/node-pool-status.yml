@@ -35,9 +35,13 @@ jobs:
           echo "--- node pool (desired state) ---"
           doctl kubernetes cluster node-pool get boykush-cluster default \
             --format Name,Size,Count,Nodes
+          # Needs a droplet read scope the CI token does not carry. Left in
+          # because widening the token is the only thing between here and the
+          # billed resource itself; the node name below answers it either way.
           echo "--- worker droplets (what is billed) ---"
           doctl compute droplet list --tag-name k8s-worker \
-            --format Name,Status,Memory,VCPUs,Created
+            --format Name,Status,Memory,VCPUs,Created \
+            || echo "(token lacks droplet read; use the node name instead)"
           echo "--- nodes as Kubernetes sees them ---"
           doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 600
           echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
