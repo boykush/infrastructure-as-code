@@ -1,0 +1,44 @@
+name: Node Pool Status
+
+# Read-only. Answers the question the pair turns into money and neither half
+# prints: is a worker droplet running right now. `count 0` is the pool's desired
+# state, and the pool keeps listing a node for a while after reaching it, so the
+# droplet list is the only honest answer.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Status
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      # No --format carries an address: this repository is public, and the
+      # cluster id and API endpoint are masked for the same reason.
+      - name: Report
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
+          echo "--- node pool (desired state) ---"
+          doctl kubernetes cluster node-pool get boykush-cluster default \
+            --format Name,Size,Count,Nodes
+          echo "--- worker droplets (what is billed) ---"
+          doctl compute droplet list --tag-name k8s-worker \
+            --format Name,Status,Memory,VCPUs,Created
+          echo "--- nodes as Kubernetes sees them ---"
+          doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 600
+          echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
+          kubectl get nodes

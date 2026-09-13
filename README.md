@@ -169,12 +169,15 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 | --- | --- | --- | --- |
 | **Node Pool Park** | `5 15 * * *` | 00:05 | node pool を 0 に |
 | **Node Pool Resume** | `35 23 * * *` | 08:35 | 1 に戻し、配信が戻るまで待つ |
+| **Node Pool Status** | dispatch のみ | | node pool / droplet / node を読むだけ |
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
 - **停止中は `wiki-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
-- resume は node の Ready だけでなく `cloudflared` と `wiki` の rollout まで待ってから緑にする。朝の失敗を握り潰すと MCP が丸一日落ちるため。
+- resume の gate は `cloudflared` と `wiki` の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 08:35 に戻すのは GitHub の schedule 遅延を見込んだ余裕。cron は定刻を保証しない。
+- 実測: park を投げてから endpoint が落ちるまで約 25 秒、resume から復帰まで約 6 分半。
+- **`count 0` は desired state で、到達後もしばらく node が列挙され続ける。** 課金が止まったかを見るなら Status の droplet 一覧（`--tag-name k8s-worker`）が唯一の正確な答え。
 - `node_count` は Terraform の `ignore_changes` 対象。main への apply がこの workflow と競合しない。
 - 止めたくない日は Actions の UI から workflow を disable する。
 - schedule は repo が 60 日無活動だと自動停止するが、Image Updater の commit が入るので実質起きない。
