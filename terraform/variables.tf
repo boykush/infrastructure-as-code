@@ -34,7 +34,7 @@ variable "node_size" {
 
 variable "node_count" {
   type        = number
-  description = "Nodes in the default node pool. Each is billed at the Droplet rate (s-2vcpu-4gb = $24/month); the control plane is free."
+  description = "Nodes the default node pool is created with. Each is billed at the Droplet rate (s-2vcpu-4gb = $24/month); the control plane is free. After creation the count belongs to the schedule workflow, not to this value."
   default     = 1
 
   validation {

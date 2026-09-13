@@ -1,0 +1,68 @@
+name: Node Pool Resume
+
+# Brings the worker node back and confirms the wiki is served again, which is
+# the half of the pair that can fail in a way worth noticing.
+on:
+  schedule:
+    - cron: "35 23 * * *" # 08:35 JST, early enough to absorb GitHub's schedule drift
+  workflow_dispatch:
+
+# Shared with Node Pool Park so the two can never overlap. A queued run is kept
+# rather than dropped: losing a resume would cost a whole day.
+concurrency:
+  group: node-pool
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resume:
+    name: Resume
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # doctl and kubectl come from mise.toml, the same pins the rest of the repo uses.
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+
+      # The cluster id is masked before doctl can print it: this repository is
+      # public, and the id is what addresses the cluster in the API.
+      - name: Scale the node pool to 1
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
+          doctl kubernetes cluster node-pool update boykush-cluster default --count 1
+
+      # A Ready node is not the goal: a fresh node has no image cache, so the
+      # gate is the two Deployments that actually put the wiki back online.
+      - name: Wait for the endpoint to come back
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
+          doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 3600
+          echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
+          joined=""
+          for _ in $(seq 1 40); do
+            if [ "$(kubectl get nodes --no-headers 2>/dev/null | wc -l)" -ge 1 ]; then
+              joined="yes"
+              break
+            fi
+            sleep 15
+          done
+          if [ -z "${joined}" ]; then
+            echo "::error::no node joined within 10 minutes"
+            exit 1
+          fi
+          kubectl wait --for=condition=Ready node --all --timeout=300s
+          kubectl -n cloudflared rollout status deployment/cloudflared --timeout=600s
+          kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=600s

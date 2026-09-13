@@ -29,10 +29,12 @@ resource "digitalocean_kubernetes_cluster" "this" {
   # An HA control plane is +$40/month — off while this stays a hobby cluster.
   ha = false
 
-  # start_time is UTC and must be a whole hour: Sunday 19:00 UTC = Monday 04:00 JST.
+  # Kept in daytime JST: the schedule workflow parks the node overnight, and a
+  # window inside that range would find no node to upgrade.
+  # start_time is UTC and must be a whole hour: Sunday 04:00 UTC = Sunday 13:00 JST.
   maintenance_policy {
     day        = "sunday"
-    start_time = "19:00"
+    start_time = "04:00"
   }
 
   # Load balancers and volumes created *by* the cluster (Services of type
@@ -46,4 +48,10 @@ resource "digitalocean_kubernetes_cluster" "this" {
   }
 
   tags = ["terraform", "boykush"]
+
+  # node_count belongs to the schedule workflow once the cluster exists, so an
+  # apply triggered by an unrelated merge must not wake the node mid-window.
+  lifecycle {
+    ignore_changes = [node_pool[0].node_count]
+  }
 }
