@@ -20,7 +20,7 @@ jobs:
   resume:
     name: Resume
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,8 +41,10 @@ jobs:
           echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
           doctl kubernetes cluster node-pool update boykush-cluster default --count 1
 
-      # A Ready node is not the goal: a fresh node has no image cache, so the
-      # gate is the two Deployments that actually put the wiki back online.
+      # The rollout is the whole gate. Waiting on a Ready node first looked
+      # safer but was worse: a node being deleted still reports Ready, so the
+      # check passed against the outgoing node. Rollout cannot be fooled that
+      # way, and 20 minutes covers provision, join and the first GHCR pull.
       - name: Wait for the endpoint to come back
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
@@ -51,18 +53,13 @@ jobs:
           echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
           doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 3600
           echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
-          joined=""
-          for _ in $(seq 1 40); do
-            if [ "$(kubectl get nodes --no-headers 2>/dev/null | wc -l)" -ge 1 ]; then
-              joined="yes"
-              break
-            fi
-            sleep 15
-          done
-          if [ -z "${joined}" ]; then
-            echo "::error::no node joined within 10 minutes"
-            exit 1
-          fi
-          kubectl wait --for=condition=Ready node --all --timeout=300s
-          kubectl -n cloudflared rollout status deployment/cloudflared --timeout=600s
-          kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=600s
+          kubectl -n cloudflared rollout status deployment/cloudflared --timeout=1200s
+          kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=1200s
+
+      # This runs unattended at 08:35, so a failure has to explain itself in the
+      # log. Neither command prints the endpoint or any node address.
+      - name: Report cluster state on failure
+        if: failure()
+        run: |
+          kubectl get nodes || true
+          kubectl get pods --all-namespaces || true
