@@ -167,23 +167,26 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 | workflow | cron（UTC） | JST | 動作 |
 | --- | --- | --- | --- |
-| **Node Pool Park** | `5 15 * * *` | 00:05 | node pool を 0 に |
-| **Node Pool Resume** | `15 23 * * *` | 08:15 | 1 に戻し、配信が戻るまで待つ |
+| **Node Pool Park** | `37 16 * * *` | 01:37 | node pool を 0 に |
+| **Node Pool Resume** | `37 21 * * *` | 06:37 | 1 に戻し、配信が戻るまで待つ |
 | **Node Pool Status** | dispatch のみ | | node pool / droplet / node を読むだけ |
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
 - **停止中は `wiki-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
 - resume の gate は `cloudflared` と `wiki` の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
-- 実測値。9 時に使える状態にするための逆算がこれ。
+- 実測値。10 時に使える状態にするための逆算がこれ。
 
 | 計測 | 値 |
 | --- | --- |
 | park 投入 → endpoint 停止 | 約 25 秒 |
 | resume 投入 → 配信復帰（ノード破棄済みの状態から） | **11 分 17 秒** |
+| 同、2026-09-14 の定期実行 | 3 分 41 秒 |
 | rollout の予算 | 20 分 |
 
-- 08:15 起床なのは、11 分に GitHub の schedule 遅延（cron は定刻を保証せず十数分ずれる）と rollout 予算の上振れを足しても 9 時に間に合わせるため。早めた 20 分ぶんの課金は月 $0.36。
+- **GitHub の schedule は定刻に来ない。実測で park が 3 時間 02 分、resume が 1 時間 48 分遅れた**（2026-09-13、Actions は全系正常でインシデント無し）。分を `:37` にしてあるのは毎時の頭がこの遅延の温床だから——ドキュメントが言う "high load times include the start of every hour" は分の話で、タイムゾーンに依らない。効くかどうかは数日ぶんの実績を見ないと判断できない。
+- 06:37 起床なのは、この 3 時間 02 分に rollout 予算 20 分を足しても 10 時に間に合わせるため。締切が 10 時なのは、直近 72 日の commit で 10:10 より前に着手した日が 1 割だったから。park が 01:37 なのは同じデータの逆側で、これより遅くまで作業した日が commit のあった 36 日中 1 日だったため。
+- **park が 5 時間以上遅れると resume を追い越す**。`concurrency` group が直列化するので park が後に回り、日中ずっと停止したままになる。実測最大 3 時間 02 分に対して余裕は 2 時間弱しかない。
 - **`count 0` は desired state。到達後もしばらく node が列挙され続ける**ので、park 直後の `Count 0` は課金が止まった証拠にならない。判断材料はノード名で、park を挟むと別名のノードとして戻る（`default-3fthnc` → `default-3ft41g`）。droplet が作り直されている、つまり課金が切れている。
 - Status の droplet 一覧は CI の token に droplet read が無いので 403 になる。落とさず続行する。見たければ token の scope を広げる。
 - `node_count` は Terraform の `ignore_changes` 対象。main への apply がこの workflow と競合しない。
@@ -199,6 +202,9 @@ node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打�
 | 稼働 | 課金時間 | ノード代 |
 | --- | --- | --- |
 | 連続（30 日） | 672（上限） | $24.00 |
-| 夜間停止 8.5h/日（30 日） | 465 | $16.61 |
+| 夜間停止 5.0h/日（30 日） | 570 | $20.35 |
+| 同、park が毎晩 3 時間遅れた月 | 660 | $23.57 |
+
+停止が 5 時間しか取れないのは、夜の作業が 01:00 過ぎまで伸びる一方で朝の締切が 10 時だから。そこに最大 3 時間の schedule 遅延が乗るので、**節約は遅延次第で $3.65 から $0.43 まで振れる**。窓を広げるには GitHub の schedule 以外の発火元（Cloudflare Workers の Cron Trigger から `workflow_dispatch` を叩くなど）が要る。
 
 outbound 転送は月 4,000 GiB まで無料で、超過分が $0.01/GiB——従量なのはここだけ。使わない期間は `terraform destroy` で完全に止められる——`destroy_all_associated_resources = true` なので、クラスタが作った LoadBalancer / volume も一緒に消える。

@@ -4,7 +4,10 @@ name: Node Pool Park
 # it is billed per second, so the bill only moves by not running it.
 on:
   schedule:
-    - cron: "5 15 * * *" # 00:05 JST
+    # Minute :37 dodges the top of the hour, where GitHub queues scheduled runs
+    # behind everyone else's. 01:37 JST is late enough that only one of the 36
+    # days with commits in the last 72 ran past it.
+    - cron: "37 16 * * *" # 01:37 JST
   workflow_dispatch:
 
 # Shared with Node Pool Resume so the two can never overlap. A queued run is

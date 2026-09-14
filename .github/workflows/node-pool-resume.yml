@@ -4,7 +4,10 @@ name: Node Pool Resume
 # the half of the pair that can fail in a way worth noticing.
 on:
   schedule:
-    - cron: "15 23 * * *" # 08:15 JST, see the README for where the margin went
+    # Counted back from a 10:00 JST deadline: the worst delay measured here is
+    # 3h02m, and with the 20 minute rollout budget on top that lands at 09:59.
+    # Minute :37 dodges the top of the hour. See the README.
+    - cron: "37 21 * * *" # 06:37 JST
   workflow_dispatch:
 
 # Shared with Node Pool Park so the two can never overlap. A queued run is kept
@@ -56,8 +59,8 @@ jobs:
           kubectl -n cloudflared rollout status deployment/cloudflared --timeout=1200s
           kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=1200s
 
-      # This runs unattended at 08:35, so a failure has to explain itself in the
-      # log. Neither command prints the endpoint or any node address.
+      # This runs unattended before dawn, so a failure has to explain itself in
+      # the log. Neither command prints the endpoint or any node address.
       - name: Report cluster state on failure
         if: failure()
         run: |
