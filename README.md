@@ -176,8 +176,8 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
-- **停止中は `wiki-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
-- resume の gate は `cloudflared` と `wiki` の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
+- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 実測値。10 時に使える状態にするための逆算がこれ。
 
 | 計測 | 値 |

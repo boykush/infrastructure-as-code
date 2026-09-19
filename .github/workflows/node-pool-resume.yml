@@ -58,6 +58,7 @@ jobs:
           echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
           kubectl -n cloudflared rollout status deployment/cloudflared --timeout=1200s
           kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=1200s
+          kubectl -n remote-mcp-server rollout status deployment/adr --timeout=1200s
 
       # This runs unattended before dawn, so a failure has to explain itself in
       # the log. Neither command prints the endpoint or any node address.
