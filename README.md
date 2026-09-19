@@ -34,17 +34,18 @@ mise exec -- kubectl apply -f applications/root.yaml
 
 ### remote MCP サーバー
 
-MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは [boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` だけ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。何を追うかは `applications/remote-mcp-server/imageupdater.yaml`（`ImageUpdater` CR）で決める——v1.x は Application の annotation を読まない。
+MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは、[boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` と、[boykush/adr](https://github.com/boykush/adr) を adg（ADG の fork）の MCP サーバーにした `adr` の2つ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。何を追うかは `applications/remote-mcp-server/imageupdater.yaml`（`ImageUpdater` CR）で決める——v1.x は Application の annotation を読まない。
 
 公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
 ```sh
 claude mcp add --transport http wiki https://wiki-mcp.boykush.com/mcp
+claude mcp add --transport http adr https://adr-mcp.boykush.com/mcp
 ```
 
-エンドポイントのパスは scraps 側で `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
+エンドポイントのパスはどちらのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
 
-**この MCP は無認証で公開している**——wiki の内容は元から公開で、scraps の MCP は読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
+**これらの MCP は無認証で公開している**——wiki も adr も内容は元から公開で、scraps と adg の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
 
 #### MCP サーバーを増やす
 
@@ -78,6 +79,8 @@ mise exec -- kubectl -n cloudflared create secret generic cloudflared-tunnel-tok
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
 
 **scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。既定の許可リストは `localhost` / `127.0.0.1` / `::1` だけなので、公開ホスト名で叩くと 403 `Forbidden: Host header is not allowed` になる。Deployment の `--allowed-host` に公開ホスト名を渡して許可する（scraps v1.2.0 以降）。loopback は残るので port-forward も併用できる。**Cloudflare 側で HTTP Host Header を書き換える設定は不要**——入っていたら外す。
+
+adg（`adr`）は Host を loopback で受けた接続でしか検証しない（公式 Go SDK の既定と同じ判定）。tunnel からの接続は pod network 経由なので、`--allowed-host` に当たる設定は要らない。
 
 port-forward も従来どおり使える。tunnel を疑うときの切り分けに。
 

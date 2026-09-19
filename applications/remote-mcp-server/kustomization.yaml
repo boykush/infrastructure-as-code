@@ -4,6 +4,7 @@ kind: Kustomization
 # One directory per MCP server, plus the rule that keeps their images current.
 # Adding a server means adding its directory here and its image below.
 resources:
+  - adr
   - wiki
   - imageupdater.yaml
 
@@ -11,6 +12,9 @@ resources:
 # writes to the kustomization.yaml at the Application's path, which is this
 # file, so the images stay here rather than in the per-server directories.
 images:
+  - name: ghcr.io/boykush/adr-mcp-server
+    newName: ghcr.io/boykush/adr-mcp-server
+    newTag: main
   - name: ghcr.io/boykush/wiki-mcp-server
     digest: sha256:82e92896290c91e3728ec3c1ec60e5a84ce72681b547539ee67a4b93308e8fb6
     newName: ghcr.io/boykush/wiki-mcp-server
