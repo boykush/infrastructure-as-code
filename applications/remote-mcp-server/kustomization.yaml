@@ -12,6 +12,6 @@ resources:
 # file, so the images stay here rather than in the per-server directories.
 images:
   - name: ghcr.io/boykush/wiki-mcp-server
-    digest: sha256:3411253f5d7a750fd0f85ce91f182a435b8820a896ab51b919a72b4efd08cbef
+    digest: sha256:a291021f20c13af71b0d4926475a92e0c9cd4c2c47f5869320d068c58c65e65c
     newName: ghcr.io/boykush/wiki-mcp-server
     newTag: main
