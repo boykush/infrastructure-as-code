@@ -1,0 +1,59 @@
+# The MCP server for boykush/adr: the decisions shared across boykush's
+# repositories, served by adg. Named for the repository, like wiki, because the
+# namespace already says it is an MCP server.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adr
+spec:
+  # One node, and the decisions are baked into the image, so there is no state
+  # to spread across replicas.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: adr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: adr
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: adg
+          # Built in boykush/adr: adg from the ADG fork plus the decisions, with
+          # the model path baked in so it stays that repository's business.
+          # The tag here is only what the kustomization's images block matches
+          # on; what actually runs is the digest pinned there.
+          image: ghcr.io/boykush/adr-mcp-server:main
+          # The entrypoint already ends in `--http`, so the only argument is the
+          # listen address. Unlike scraps, adg needs no allowed host: it checks
+          # Host only on connections accepted on loopback, and the tunnel's
+          # arrive over the pod network.
+          args:
+            - "0.0.0.0:8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          # The MCP endpoint only answers POST, so readiness checks the socket.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

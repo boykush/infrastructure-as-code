@@ -61,6 +61,10 @@ variable "tunnel_routes" {
       subdomain = "wiki-mcp"
       service   = "http://wiki.remote-mcp-server.svc.cluster.local:1113"
     },
+    {
+      subdomain = "adr-mcp"
+      service   = "http://adr.remote-mcp-server.svc.cluster.local:8080"
+    },
   ]
 
   validation {

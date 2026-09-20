@@ -30,3 +30,10 @@ spec:
             kustomize:
               # The entry in that kustomization's images list to rewrite.
               name: ghcr.io/boykush/wiki-mcp-server
+        - alias: adr
+          imageName: ghcr.io/boykush/adr-mcp-server:main
+          commonUpdateSettings:
+            updateStrategy: digest
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/boykush/adr-mcp-server
