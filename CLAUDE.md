@@ -59,7 +59,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **1 Application、サーバーごとにディレクトリ**。`applications/remote-mcp-server/<name>/` が1つの MCP サーバーで、root の `kustomization.yaml` が `resources` で束ねる。共通しているのは「MCP サーバーである」ことだけなので、Application を分けずに namespace を共有している。増やす手順は README。
 - **`images:` は root の kustomization に置く**。Image Updater の `write-back-target: kustomization` は Application の `path` にある kustomization.yaml へ書くので、per-server のディレクトリに置くと書き戻し先とずれる。
 - **リソース名はサーバー名**（`wiki` であって `remote-mcp-server` ではない）。namespace が既に「MCP サーバー群」を意味しているので、名前が担うのは「どれか」の方。
-- **リポジトリ間の分担**: image のビルドは各アプリの repo（wiki なら boykush/wiki が wiki のコンテンツ + scraps バイナリを、adr なら boykush/adr が決定と `.rule` + adi バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。
+- **リポジトリ間の分担**: image のビルドは各アプリの repo（wiki なら boykush/wiki が wiki のコンテンツ + scraps バイナリを、adr なら boykush/adr が決定と `.rule` + adi バイナリを同梱）、manifest はこの repo。両者を繋ぐのが Image Updater。エージェント側の接続設定は boykush/ai-plugins が plugin として配る（wiki なら `wiki-mcp` plugin、MCP サーバー名は `scraps`）ので、この repo には書かない。
 - **image の契約**（boykush/wiki の `Dockerfile` と workflow が決めている側）:
   - `ghcr.io/boykush/wiki-mcp-server`。可変の `main` と、`<scraps version>-<sha7>` の2つが push される。追うのは `main`。
   - ENTRYPOINT が `scraps mcp serve --http` なので、**`args` に渡すのは listen アドレスだけ**。`mcp serve` から書くと二重になって起動しない。
