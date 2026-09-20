@@ -38,7 +38,7 @@ MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置�
 
 公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
-この repo が持つのは公開エンドポイントまで——`https://wiki-mcp.boykush.com/mcp` と `https://adr-mcp.boykush.com/mcp`。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が plugin として配る（wiki なら `wiki-mcp` plugin、MCP サーバー名は `scraps`）。
+この repo が持つのは公開エンドポイントまで——`https://wiki-mcp.boykush.com/mcp` と `https://adr-mcp.boykush.com/mcp`。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る（`plugins/wiki-remote-mcp` が MCP サーバー名 `scraps`、`plugins/adr-remote-mcp` が `adr`）。
 
 エンドポイントのパスはどちらのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
 
