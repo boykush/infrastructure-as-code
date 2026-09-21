@@ -1,0 +1,23 @@
+# Backstage over boykush/github-management's catalog. Reached only by
+# port-forward, like the Argo CD UI: guest sign-in is on and the permission
+# policy is allow-all, so it must never get a route on the Cloudflare Tunnel.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backstage
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/backstage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backstage
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

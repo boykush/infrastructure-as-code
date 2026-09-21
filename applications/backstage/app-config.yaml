@@ -1,0 +1,39 @@
+# Layered over the image's app-config.yaml (the create-app defaults). Reached
+# by port-forward, hence the localhost base URLs.
+app:
+  title: boykush catalog
+  baseUrl: http://localhost:7007
+  # An array, so this replaces the image's list rather than merging into it;
+  # page:catalog is restated to keep the catalog at /.
+  extensions:
+    - page:catalog:
+        config:
+          path: /
+    # Rooted at the owner of every entity, so the graph reaches all of them
+    # without this file naming a single repo.
+    - page:catalog-graph:
+        config:
+          rootEntityRefs: [user:default/boykush]
+          selectedKinds: [user, component, api]
+          selectedRelations: [ownerOf, ownedBy, dependsOn, dependencyOf, providesApi, apiProvidedBy, consumesApi, apiConsumedBy]
+          unidirectional: false
+          mergeRelations: true
+          direction: LR
+organization:
+  name: boykush
+backend:
+  baseUrl: http://localhost:7007
+auth:
+  providers:
+    guest:
+      # Safe only because nothing but port-forward reaches this Service.
+      dangerouslyAllowOutsideDevelopment: true
+# The contract boykush/github-management's AGENTS.md states: one entry URL with
+# User allowed on it, and a token that can read that repo. Rules are matched
+# against the entry location, so this one covers every file it pulls in.
+catalog:
+  locations:
+    - type: url
+      target: https://github.com/boykush/github-management/blob/main/catalog/all.yaml
+      rules:
+        - allow: [User]

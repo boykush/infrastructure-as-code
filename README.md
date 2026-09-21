@@ -114,6 +114,28 @@ mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpat
 
 `https://localhost:8080` に admin で入る。証明書は自己署名なので警告が出る。
 
+### Backstage
+
+[boykush/github-management](https://github.com/boykush/github-management) の `catalog/`（repo をまたいで作用する関係のカタログ）を見る Backstage。公式 image（`ghcr.io/backstage/backstage`）をそのまま使い、この repo が持つのは manifest と、image 既定の設定に重ねる `applications/backstage/app-config.yaml` だけ。
+
+**公開しない**。Argo CD の UI と同じく port-forward で見る。guest でサインインでき permission も allow-all なので、tunnel に route を足すと、誰でも catalog の登録・削除ができてしまう。
+
+```sh
+mise exec -- kubectl -n backstage port-forward svc/backstage 7007:7007
+```
+
+`http://localhost:7007` を開き、guest で入る。base URL を `localhost:7007` にしてあるので、手元の port も 7007 にする。
+
+github-management は private なので、catalog を読む token を Secret にする（git には入れない）。fine-grained PAT を github-management だけに絞り、Contents: read で作る。Argo CD が namespace を作った後に:
+
+```sh
+read -rs GITHUB_PAT   # 貼り付けて Enter。画面にも履歴にも残らない
+mise exec -- kubectl -n backstage create secret generic backstage-github-token --from-literal=token="$GITHUB_PAT"
+unset GITHUB_PAT
+```
+
+Secret ができるまで Pod は `CreateContainerConfigError` で止まる。token を作り直したら Secret を消して作り直し、`kubectl -n backstage rollout restart deployment/backstage` で読み直させる。
+
 ## Toolchain
 
 Terraform / doctl / kubectl を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
