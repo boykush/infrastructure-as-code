@@ -29,3 +29,6 @@ kubeconfig.yaml
 *.kubeconfig
 
 # Keep .terraform.lock.hcl committed (do not ignore it)
+
+# apm install unpacks dependencies here; the files it generates (.mcp.json etc.) are committed
+apm_modules/
