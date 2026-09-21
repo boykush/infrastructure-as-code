@@ -80,6 +80,7 @@ jobs:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TF_VAR_access_owner_email: ${{ secrets.ACCESS_OWNER_EMAIL }}
         run: tfcmt plan -- terraform plan -input=false -no-color
 
       - name: Terraform Apply
@@ -89,4 +90,5 @@ jobs:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TF_VAR_access_owner_email: ${{ secrets.ACCESS_OWNER_EMAIL }}
         run: tfcmt apply -- terraform apply -input=false -auto-approve -no-color

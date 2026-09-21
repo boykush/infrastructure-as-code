@@ -64,7 +64,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read)。
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -118,13 +118,13 @@ mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpat
 
 [boykush/github-management](https://github.com/boykush/github-management) の `catalog/`（repo をまたいで作用する関係のカタログ）を見る Backstage。公式 image（`ghcr.io/backstage/backstage`）をそのまま使い、この repo が持つのは manifest と、image 既定の設定に重ねる `applications/backstage/app-config.yaml` だけ。
 
-**公開しない**。Argo CD の UI と同じく port-forward で見る。guest でサインインでき permission も allow-all なので、tunnel に route を足すと、誰でも catalog の登録・削除ができてしまう。
+`https://backstage.boykush.com` で開く。tunnel で公開しているが、前段の **Cloudflare Access が owner のメールアドレスしか通さない**（`terraform/access.tf`）。ログインはメールに届くワンタイム PIN で、Access を通った後の Backstage には guest で入る。
 
-```sh
-mise exec -- kubectl -n backstage port-forward svc/backstage 7007:7007
-```
+Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行を通して、Backstage が持つ GitHub token で読めるもの（private な github-management）まで誰でも読めてしまう。
 
-`http://localhost:7007` を開き、guest で入る。base URL を `localhost:7007` にしてあるので、手元の port も 7007 にする。
+- 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。
+- ワンタイム PIN は、新しい Zero Trust の組織では既定のログイン方法ではないので、Terraform が identity provider として作る。ダッシュボードで既に足してあると apply が衝突するので、その ID で import する。
+- base URL が公開ホスト名なので、port-forward では画面が動かない（API の切り分けにだけ使える）。
 
 github-management は private なので、catalog を読む token を Secret にする（git には入れない）。fine-grained PAT を github-management だけに絞り、Contents: read で作る。Argo CD が namespace を作った後に:
 
@@ -155,6 +155,7 @@ mise install                            # toolchain を導入
 mise run tf:login                       # HCP backend 認証（一度だけ）
 doctl auth init                         # DO の PAT を入力（~/.config/doctl/config.yaml に保存）
 export DIGITALOCEAN_ACCESS_TOKEN=...    # provider 用（doctl と同じ変数名）
+export TF_VAR_access_owner_email=...    # Access が通すアドレス（public repo に置かないため変数で渡す）
 
 cd terraform
 mise exec -- terraform init
@@ -176,7 +177,8 @@ mise exec -- terraform plan
 | --- | --- |
 | `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
-| `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel と DNS） |
+| `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
+| `ACCESS_OWNER_EMAIL` | Access が Backstage に通すメールアドレス（`TF_VAR_access_owner_email`） |
 | `IMAGE_UPDATER_APP_PRIVATE_KEY` | Image Updater の GitHub App（id 2つは variable） |
 
 **Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。
@@ -195,7 +197,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
-- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com`、`backstage.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
 - resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 実測値。10 時に使える状態にするための逆算がこれ。
 

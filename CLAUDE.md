@@ -23,7 +23,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - state は HCP Terraform（org `boykush` / workspace `infrastructure-as-code`）。Execution Mode = **Local**。remote のままだと HCP 側で実行され、DO token が無い環境で plan が落ちる（workspace 新規作成時の default は remote なので、作り直したら必ず変える）。
 - provider の認証は `DIGITALOCEAN_ACCESS_TOKEN`。provider が優先して読むのは `DIGITALOCEAN_TOKEN` だが、doctl が読むのは `DIGITALOCEAN_ACCESS_TOKEN` だけなので、1変数で両方賄えるこちらに寄せている。
-- CI は secret `TF_API_TOKEN`（HCP backend）、`DIGITALOCEAN_ACCESS_TOKEN`、`CLOUDFLARE_API_TOKEN`（provider）。tfcmt は built-in の `GITHUB_TOKEN` を使う——owner 全体の default workflow permissions が read に絞られているため、job の `permissions:` で `pull-requests: write` / `issues: write` を戻している。
+- CI は secret `TF_API_TOKEN`（HCP backend）、`DIGITALOCEAN_ACCESS_TOKEN`、`CLOUDFLARE_API_TOKEN`（provider）、`ACCESS_OWNER_EMAIL`（`TF_VAR_access_owner_email`。public repo にメールアドレスを置かないため）。tfcmt は built-in の `GITHUB_TOKEN` を使う——owner 全体の default workflow permissions が read に絞られているため、job の `permissions:` で `pull-requests: write` / `issues: write` を戻している。
 
 ## ワークフロー
 
@@ -82,7 +82,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **クラスタの出口であって、アプリの一部ではない**。だから MCP サーバーとは別の Application / namespace（`cloudflared`）にしてある。1本の tunnel が全ホスト名を捌くので、公開するものが増えても `cloudflared` は1つのまま。
 - **なぜ tunnel で、LB でないか**: `cloudflared` がクラスタ内から dial out するので Service は ClusterIP のまま、ノードの public IP には何も開かず、DO の Load Balancer（$12/月〜）も増えない。NodePort は DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所としては採らなかった。
 - **route は Terraform**: remotely-managed tunnel なので hostname → Service の対応は Cloudflare 側の設定だが、それを書くのは `terraform/cloudflare.tf`。tunnel 本体・route・DNS の CNAME が揃っていて、触るのは `var.tunnel_routes` だけ。catch-all（`http_status:404`）は末尾に自動で付く。Service URL は namespace を跨ぐので **FQDN**（`<name>.remote-mcp-server.svc.cluster.local:<port>`）で書く。
-- **zone / account ID は commit しない**: `data.cloudflare_zones` に `var.domain` を渡して両方引いている。API token に Zone: Zone (Read) が要るのはこのため（他は Account: Cloudflare Tunnel (Edit) と Zone: DNS (Edit)）。
+- **zone / account ID は commit しない**: `data.cloudflare_zones` に `var.domain` を渡して両方引いている。API token に Zone: Zone (Read) が要るのはこのため（他は Account: Cloudflare Tunnel (Edit) と Zone: DNS (Edit)、Access 用に Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write））。
 - **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
 - **token は Secret `cloudflared/cloudflared-tunnel-token`**（key は `token`）。Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
 - **`cloudflared` の tag は手で上げる**: Image Updater が追うのは `ImageUpdater` CR に名指しされた Application だけで、この Application は名指しされていない。
@@ -90,7 +90,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Backstage（`applications/backstage/`）
 
 - **公式 image をそのまま使う**。自前の build は無く、設定は `app-config.yaml` を configMapGenerator で ConfigMap にして image 既定の設定に重ねる。image の CMD は `app-config.production.yaml`（PostgreSQL 前提）も読むので、`args` で置き換えて外している。
-- **公開しない**（port-forward のみ）。guest サインインを本番で許す `dangerouslyAllowOutsideDevelopment` と allow-all の permission で動いているので、`tunnel_routes` に足すと誰でも catalog を書き換えられる。MCP として配るときは、wiki / adr と同じく `remote-mcp-server` 側に並べる形で別に考える（未着手）。
+- **公開は Cloudflare Access の後ろだけ**。guest サインインを本番で許す `dangerouslyAllowOutsideDevelopment` と allow-all の permission で動いているので、Access が無いと誰でも catalog を書き換えられ、scaffolder の試し実行で GitHub token が読める private repo の中身まで引き出せる。`terraform/access.tf` がワンタイム PIN で owner のアドレスだけを通し、tunnel の routing table は `depends_on` でその application ができるのを待つ。MCP として配るときは、wiki / adr と同じく `remote-mcp-server` 側に並べる形で別に考える（未着手）。
+- **catalog は `readonly`**。location の登録・解除は拒否される。entity を直接消す API（`DELETE /entities/by-uid`）は readonly でも通るが、消しても数秒で github-management から読み直されて戻る（手元の 1.55.0 で確認）。entity は github-management からしか入らない。
 - **catalog の中身は github-management が持つ**。こちらが知るのは入口の URL と、Catalog Graph の起点にしている owner（`user:boykush`）だけで、repo 名は書かない。入口の location に付けた `rules` は入口の URL で照合されるので、`targets` の先で読まれる User にも効く。
 - **状態を持たない**。DB は image 既定のメモリ上の SQLite で、catalog は起動のたびに GitHub から読み直す。PVC を作らない（DO の volume は別課金）。夜間停止で Pod が作り直されても困らない。
 - **root filesystem は read-only**。書き込み先は `/tmp` の emptyDir だけ。image の USER は名前（`node`）なので、`runAsNonRoot` を満たすために `runAsUser: 1000` を明示している。
