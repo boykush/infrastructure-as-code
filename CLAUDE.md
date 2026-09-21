@@ -82,7 +82,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **クラスタの出口であって、アプリの一部ではない**。だから MCP サーバーとは別の Application / namespace（`cloudflared`）にしてある。1本の tunnel が全ホスト名を捌くので、公開するものが増えても `cloudflared` は1つのまま。
 - **なぜ tunnel で、LB でないか**: `cloudflared` がクラスタ内から dial out するので Service は ClusterIP のまま、ノードの public IP には何も開かず、DO の Load Balancer（$12/月〜）も増えない。NodePort は DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所としては採らなかった。
 - **route は Terraform**: remotely-managed tunnel なので hostname → Service の対応は Cloudflare 側の設定だが、それを書くのは `terraform/cloudflare.tf`。tunnel 本体・route・DNS の CNAME が揃っていて、触るのは `var.tunnel_routes` だけ。catch-all（`http_status:404`）は末尾に自動で付く。Service URL は namespace を跨ぐので **FQDN**（`<name>.remote-mcp-server.svc.cluster.local:<port>`）で書く。
-- **zone / account ID は commit しない**: `data.cloudflare_zones` に `var.domain` を渡して両方引いている。API token に Zone: Zone (Read) が要るのはこのため（他は Account: Cloudflare Tunnel (Edit) と Zone: DNS (Edit)、Access 用に Access: Apps and Policies (Edit) と Access: Organizations, Identity Providers, and Groups (Edit)）。
+- **zone / account ID は commit しない**: `data.cloudflare_zones` に `var.domain` を渡して両方引いている。API token に Zone: Zone (Read) が要るのはこのため（他は Account: Cloudflare Tunnel (Edit) と Zone: DNS (Edit)、Access 用に Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write））。
 - **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
 - **token は Secret `cloudflared/cloudflared-tunnel-token`**（key は `token`）。Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
 - **`cloudflared` の tag は手で上げる**: Image Updater が追うのは `ImageUpdater` CR に名指しされた Application だけで、この Application は名指しされていない。
