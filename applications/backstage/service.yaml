@@ -1,0 +1,14 @@
+# ClusterIP only, reached by port-forward. Anyone who could reach it could sign
+# in as a guest and register or delete catalog entities, so it gets no tunnel route.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: backstage
+  ports:
+    - name: http
+      port: 7007
+      targetPort: http

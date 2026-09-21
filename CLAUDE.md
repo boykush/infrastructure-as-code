@@ -86,3 +86,13 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
 - **token は Secret `cloudflared/cloudflared-tunnel-token`**（key は `token`）。Image Updater の git creds と同様 **`kubectl` で作り git には入れない**。
 - **`cloudflared` の tag は手で上げる**: Image Updater が追うのは `ImageUpdater` CR に名指しされた Application だけで、この Application は名指しされていない。
+
+## Backstage（`applications/backstage/`）
+
+- **公式 image をそのまま使う**。自前の build は無く、設定は `app-config.yaml` を configMapGenerator で ConfigMap にして image 既定の設定に重ねる。image の CMD は `app-config.production.yaml`（PostgreSQL 前提）も読むので、`args` で置き換えて外している。
+- **公開しない**（port-forward のみ）。guest サインインを本番で許す `dangerouslyAllowOutsideDevelopment` と allow-all の permission で動いているので、`tunnel_routes` に足すと誰でも catalog を書き換えられる。MCP として配るときは、wiki / adr と同じく `remote-mcp-server` 側に並べる形で別に考える（未着手）。
+- **catalog の中身は github-management が持つ**。こちらが知るのは入口の URL と、Catalog Graph の起点にしている owner（`user:boykush`）だけで、repo 名は書かない。入口の location に付けた `rules` は入口の URL で照合されるので、`targets` の先で読まれる User にも効く。
+- **状態を持たない**。DB は image 既定のメモリ上の SQLite で、catalog は起動のたびに GitHub から読み直す。PVC を作らない（DO の volume は別課金）。夜間停止で Pod が作り直されても困らない。
+- **root filesystem は read-only**。書き込み先は `/tmp` の emptyDir だけ。image の USER は名前（`node`）なので、`runAsNonRoot` を満たすために `runAsUser: 1000` を明示している。
+- **token は Secret `backstage/backstage-github-token`**（key は `token`）。`kubectl` で作り git には入れない。github-management が private なので Contents: read が要る。
+- **tag は手で上げる**（`cloudflared` と同じく Image Updater の対象外）。

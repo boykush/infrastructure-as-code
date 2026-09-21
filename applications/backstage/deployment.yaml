@@ -1,0 +1,96 @@
+# The official image, which is what create-app generates, run as-is: our part
+# is only the config layered on top. Stateless — the database is the image's
+# in-memory SQLite and the catalog is re-read from GitHub on every start, so
+# there is no volume to bill or back up.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backstage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backstage
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's USER is the name `node`; the kubelet needs the number to
+        # prove it is not root.
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backstage
+          # Image Updater follows only what an ImageUpdater CR names, so this tag
+          # is bumped by hand, like cloudflared's.
+          image: ghcr.io/backstage/backstage:1.55.0
+          # Replaces the image's CMD to drop app-config.production.yaml, which
+          # expects PostgreSQL; the base app-config.yaml keeps in-memory SQLite.
+          args:
+            - node
+            - packages/backend
+            - --config
+            - app-config.yaml
+            - --config
+            - /config/app-config.yaml
+          env:
+            # Read by the image's app-config.yaml (integrations.github). The
+            # catalog lives in a private repo, so this needs Contents: read on
+            # it. A credential, so the Secret is created with kubectl, never committed.
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github-token
+                  key: token
+          ports:
+            - name: http
+              containerPort: 7007
+          # Startup reads every catalog file from GitHub before the first
+          # readiness, so the startup probe gives it room the liveness one does not.
+          startupProbe:
+            httpGet:
+              path: /.backstage/health/v1/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /.backstage/health/v1/readiness
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /.backstage/health/v1/liveness
+              port: http
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            # The only place it writes; the root filesystem stays read-only.
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Idles around 300Mi with this catalog (measured locally on 1.55.0).
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: config
+          configMap:
+            name: backstage-app-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
