@@ -81,4 +81,11 @@ variable "access_owner_email" {
   type        = string
   sensitive   = true
   description = "The one address Cloudflare Access lets into Backstage. Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
+
+  # An unset Actions secret expands to an empty string rather than failing, which
+  # would plan cleanly into a policy that admits no one.
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+$", var.access_owner_email))
+    error_message = "access_owner_email must be an email address; check the ACCESS_OWNER_EMAIL secret."
+  }
 }
