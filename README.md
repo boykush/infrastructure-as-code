@@ -120,21 +120,13 @@ mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpat
 
 `https://backstage.boykush.com` で開く。tunnel で公開しているが、前段の **Cloudflare Access が owner のメールアドレスしか通さない**（`terraform/access.tf`）。ログインはメールに届くワンタイム PIN で、Access を通った後の Backstage には guest で入る。
 
-Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行を通して、Backstage が持つ GitHub token で読めるもの（private な github-management）まで誰でも読めてしまう。
+Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行など guest に許した操作を誰でも動かせてしまう。
 
 - 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。
 - ワンタイム PIN は、新しい Zero Trust の組織では既定のログイン方法ではないので、Terraform が identity provider として作る。ダッシュボードで既に足してあると apply が衝突するので、その ID で import する。
 - base URL が公開ホスト名なので、port-forward では画面が動かない（API の切り分けにだけ使える）。
 
-github-management は private なので、catalog を読む token を Secret にする（git には入れない）。fine-grained PAT を github-management だけに絞り、Contents: read で作る。Argo CD が namespace を作った後に:
-
-```sh
-read -rs GITHUB_PAT   # 貼り付けて Enter。画面にも履歴にも残らない
-mise exec -- kubectl -n backstage create secret generic backstage-github-token --from-literal=token="$GITHUB_PAT"
-unset GITHUB_PAT
-```
-
-Secret ができるまで Pod は `CreateContainerConfigError` で止まる。token を作り直したら Secret を消して作り直し、`kubectl -n backstage rollout restart deployment/backstage` で読み直させる。
+catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
 
 ## Toolchain
 
