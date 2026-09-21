@@ -1,7 +1,7 @@
 # The official image, which is what create-app generates, run as-is: our part
 # is only the config layered on top. Stateless — the database is the image's
-# in-memory SQLite and the catalog is re-read from GitHub on every start, so
-# there is no volume to bill or back up.
+# in-memory SQLite and the catalog is copied in from its own image on every
+# start, so there is no volume to bill or back up.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +25,27 @@ spec:
         runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # boykush/github-management builds the catalog into this image, so the
+        # cluster needs no credential for that private repository. Its digest is
+        # followed by Image Updater (imageupdater.yaml).
+        - name: catalog
+          image: ghcr.io/boykush/github-management-catalog:main
+          command: [cp, -R, /catalog/., /shared/]
+          volumeMounts:
+            - name: catalog
+              mountPath: /shared
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
       containers:
         - name: backstage
           # Image Updater follows only what an ImageUpdater CR names, so this tag
@@ -39,20 +60,11 @@ spec:
             - app-config.yaml
             - --config
             - /config/app-config.yaml
-          env:
-            # Read by the image's app-config.yaml (integrations.github). The
-            # catalog lives in a private repo, so this needs Contents: read on
-            # it. A credential, so the Secret is created with kubectl, never committed.
-            - name: GITHUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: backstage-github-token
-                  key: token
           ports:
             - name: http
               containerPort: 7007
-          # Startup reads every catalog file from GitHub before the first
-          # readiness, so the startup probe gives it room the liveness one does not.
+          # Startup builds the whole app before the first readiness, so the startup
+          # probe gives it room the liveness one does not.
           startupProbe:
             httpGet:
               path: /.backstage/health/v1/liveness
@@ -71,6 +83,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+              readOnly: true
+            - name: catalog
+              mountPath: /catalog
               readOnly: true
             # The only place it writes; the root filesystem stays read-only.
             - name: tmp
@@ -94,3 +109,6 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        - name: catalog
+          emptyDir:
+            sizeLimit: 16Mi

@@ -52,7 +52,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **自己管理**: `applications/argocd.yaml` が `argocd/` を同期する。`prune: false` にしてあるのは、path を間違えたときに自分を消させないため。
 - **app of apps**: `applications/root.yaml` が `applications/` の**直下のファイルだけ**を同期する（`recurse: false`）。サブディレクトリは各アプリの manifest で、それは個々の Application が同期するため、root が拾うと二重管理になる。アプリを増やす操作は `<name>.yaml` と `<name>/` を足すこと。
 - **Image Updater**: イメージのビルドは各アプリの repo、manifest はこの repo という分担なので、tag の更新は Image Updater が担う。git write-back の書き込み先は Application の source repo、つまり**この repo**。そのための書き込み credential をクラスタ内の Secret に置く必要があり、**その Secret は git に入れず `kubectl` で作る**。
-- **v1.x の設定は `ImageUpdater` CR だけ**。Application の annotation は `useAnnotations` を立てない限り読まれず、CR が1つも無いと controller は「対象なし」を回し続ける（v1.0.0 で annotation ベースから移行済み）。CR は `applications/remote-mcp-server/imageupdater.yaml` に置き、**namespace は `argocd`**——controller は自分の namespace しか見ず、CR が選べるのは隣に居る Application だけ。
+- **v1.x の設定は `ImageUpdater` CR だけ**。Application の annotation は `useAnnotations` を立てない限り読まれず、CR が1つも無いと controller は「対象なし」を回し続ける（v1.0.0 で annotation ベースから移行済み）。CR はアプリのディレクトリに置き（`applications/remote-mcp-server/imageupdater.yaml` と `applications/backstage/imageupdater.yaml`）、**namespace は `argocd`**——controller は自分の namespace しか見ず、CR が選べるのは隣に居る Application だけ。
 
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
@@ -90,10 +90,10 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Backstage（`applications/backstage/`）
 
 - **公式 image をそのまま使う**。自前の build は無く、設定は `app-config.yaml` を configMapGenerator で ConfigMap にして image 既定の設定に重ねる。image の CMD は `app-config.production.yaml`（PostgreSQL 前提）も読むので、`args` で置き換えて外している。
-- **公開は Cloudflare Access の後ろだけ**。guest サインインを本番で許す `dangerouslyAllowOutsideDevelopment` と allow-all の permission で動いているので、Access が無いと誰でも catalog を書き換えられ、scaffolder の試し実行で GitHub token が読める private repo の中身まで引き出せる。`terraform/access.tf` がワンタイム PIN で owner のアドレスだけを通し、tunnel の routing table は `depends_on` でその application ができるのを待つ。MCP として配るときは、wiki / adr と同じく `remote-mcp-server` 側に並べる形で別に考える（未着手）。
-- **catalog は `readonly`**。location の登録・解除は拒否される。entity を直接消す API（`DELETE /entities/by-uid`）は readonly でも通るが、消しても数秒で github-management から読み直されて戻る（手元の 1.55.0 で確認）。entity は github-management からしか入らない。
-- **catalog の中身は github-management が持つ**。こちらが知るのは入口の URL と、Catalog Graph の起点にしている owner（`user:boykush`）だけで、repo 名は書かない。入口の location に付けた `rules` は入口の URL で照合されるので、`targets` の先で読まれる User にも効く。
-- **状態を持たない**。DB は image 既定のメモリ上の SQLite で、catalog は起動のたびに GitHub から読み直す。PVC を作らない（DO の volume は別課金）。夜間停止で Pod が作り直されても困らない。
+- **公開は Cloudflare Access の後ろだけ**。guest サインインを本番で許す `dangerouslyAllowOutsideDevelopment` と allow-all の permission で動いているので、Access が無いと、scaffolder の試し実行など guest に許した操作を誰でも動かせる。`terraform/access.tf` がワンタイム PIN で owner のアドレスだけを通し、tunnel の routing table は `depends_on` でその application ができるのを待つ。MCP として配るときは、wiki / adr と同じく `remote-mcp-server` 側に並べる形で別に考える（未着手）。
+- **catalog は `readonly`**。location の登録・解除は拒否される。entity を直接消す API（`DELETE /entities/by-uid`）は readonly でも通るが、消しても数秒で catalog から読み直されて戻る（手元の 1.55.0 で、file と url の location の両方で確認）。entity は github-management の catalog からしか入らない。
+- **catalog の中身は github-management が持つ**。こちらが知るのは catalog の image と、その中の入口（`/catalog/all.yaml`）、Catalog Graph の起点にしている owner（`user:boykush`）だけで、repo 名は書かない。入口の location に付けた `rules` は入口の location で照合されるので、`targets` の先で読まれる User にも効く。
+- **状態を持たない**。DB は image 既定のメモリ上の SQLite で、catalog は起動のたびに image からコピーして読む。PVC を作らない（DO の volume は別課金）。夜間停止で Pod が作り直されても困らない。
 - **root filesystem は read-only**。書き込み先は `/tmp` の emptyDir だけ。image の USER は名前（`node`）なので、`runAsNonRoot` を満たすために `runAsUser: 1000` を明示している。
-- **token は Secret `backstage/backstage-github-token`**（key は `token`）。`kubectl` で作り git には入れない。github-management が private なので Contents: read が要る。
-- **tag は手で上げる**（`cloudflared` と同じく Image Updater の対象外）。
+- **catalog の image の契約**（boykush/github-management の AGENTS.md が決めている側）: `ghcr.io/boykush/github-management-catalog`。可変の `main` と commit SHA 7桁の2つが push され、追うのは `main`（Image Updater が digest で）。中身は `/catalog/*.yaml` で、init container の `cp -R /catalog/. /shared/` のために busybox を土台にしている。GHCR の package は public なので、GitHub の credential も pull 用の Secret も要らない。
+- **Backstage 本体の tag は手で上げる**（`cloudflared` と同じく Image Updater の対象外。Image Updater が追うのは catalog の image だけ）。

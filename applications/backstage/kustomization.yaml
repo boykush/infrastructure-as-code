@@ -4,9 +4,17 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
+  - imageupdater.yaml
 
 # The hash suffix on the generated name rolls the Deployment when the config changes.
 configMapGenerator:
   - name: backstage-app-config
     files:
       - app-config.yaml
+
+# Image Updater rewrites this entry, pinning the digest behind the moving `main`
+# tag. The Backstage image itself is pinned by tag in deployment.yaml instead.
+images:
+  - name: ghcr.io/boykush/github-management-catalog
+    newName: ghcr.io/boykush/github-management-catalog
+    newTag: main
