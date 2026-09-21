@@ -1,5 +1,5 @@
-# ClusterIP only, reached by port-forward. Anyone who could reach it could sign
-# in as a guest and register or delete catalog entities, so it gets no tunnel route.
+# ClusterIP only: the internet reaches this through the tunnel, and only past
+# Cloudflare Access. The tunnel addresses it as backstage.backstage.svc.cluster.local:7007.
 apiVersion: v1
 kind: Service
 metadata:

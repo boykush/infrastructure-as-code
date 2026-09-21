@@ -65,10 +65,20 @@ variable "tunnel_routes" {
       subdomain = "adr-mcp"
       service   = "http://adr.remote-mcp-server.svc.cluster.local:8080"
     },
+    {
+      subdomain = "backstage"
+      service   = "http://backstage.backstage.svc.cluster.local:7007"
+    },
   ]
 
   validation {
     condition     = length(var.tunnel_routes) == length(distinct([for route in var.tunnel_routes : route.subdomain]))
     error_message = "Each subdomain can appear once: a second entry would collide on the DNS record."
   }
+}
+
+variable "access_owner_email" {
+  type        = string
+  sensitive   = true
+  description = "The one address Cloudflare Access lets into Backstage. Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
 }
