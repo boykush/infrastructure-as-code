@@ -23,10 +23,17 @@ organization:
   name: boykush
 backend:
   baseUrl: https://backstage.boykush.com
+  auth:
+    # The agents that read the catalog over MCP carry no identity to present,
+    # and the policy cannot be lifted for one plugin from configuration alone.
+    # What that opens is bounded outside: Cloudflare Access lets only the
+    # catalog MCP server's path through without a login.
+    dangerouslyDisableDefaultAuthPolicy: true
 auth:
   providers:
     guest:
-      # Safe only because Cloudflare Access lets no one but the owner reach it.
+      # Safe only because Cloudflare Access lets no one but the owner reach the
+      # pages that sign in.
       dangerouslyAllowOutsideDevelopment: true
 # The contract boykush/github-management's AGENTS.md states: the catalog image
 # puts its entry at /catalog/all.yaml, and User must be allowed on that location.
@@ -40,3 +47,21 @@ catalog:
       target: /catalog/all.yaml
       rules:
         - allow: [User]
+
+# What coding agents connect to, in the repositories that declare it through apm.
+# The default server at /api/mcp-actions/v1 is always exposed and always serves
+# every registered action, so Access opens this named one alone
+# (terraform/access.tf) and the filter keeps it to reading the catalog.
+mcpActions:
+  servers:
+    catalog:
+      name: boykush catalog
+      instructions: >-
+        The repositories under the boykush owner and the relations that cross
+        them. Ask it which repositories a change reaches before treating the one
+        in front of you as the whole of it.
+      filter:
+        include:
+          - id: catalog:*
+            attributes:
+              readOnly: true

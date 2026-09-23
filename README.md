@@ -40,6 +40,8 @@ MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置�
 
 この repo が持つのは公開エンドポイントまで——`https://wiki-mcp.boykush.com/mcp` と `https://adr-mcp.boykush.com/mcp`。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る（`plugins/wiki-remote-mcp` が MCP サーバー名 `scraps`、`plugins/adr-remote-mcp` が `adr`）。
 
+catalog を引く3つ目の MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
+
 エンドポイントのパスはどちらのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
 
 **これらの MCP は無認証で公開している**——wiki も adr も内容は元から公開で、scraps と adi の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
@@ -122,6 +124,14 @@ mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpat
 
 Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行など guest に許した操作を誰でも動かせてしまう。
 
+例外は path が1つだけある。coding agent が catalog を引く MCP サーバーで、`https://backstage.boykush.com/api/mcp-actions/v1/catalog` を Access の bypass policy で無記名のまま通す。出しているのは read-only の catalog action（`catalog:query-catalog-entities` など）に絞った named server で、絞っていない既定の server（`/api/mcp-actions/v1`。常に全 action を出す）は Access の内側に残る。Access は具体的な path を先に評価するので、この2つは共存する。
+
+```sh
+claude mcp add --transport http catalog https://backstage.boykush.com/api/mcp-actions/v1/catalog
+```
+
+無記名で通す以上、Backstage 側の default auth policy は落としてある（`dangerouslyDisableDefaultAuthPolicy`）。plugin 単位で外す方法が設定には無いため。**つまり公開面を決めているのは Access の path だけ**で、ここを広げると backend 全体が無記名で開く。締めたいなら、static token を `backend.auth.externalAccess` に置き、Cloudflare の Transform Rule でこの path にだけ `Authorization` を足す形にできる（token がクラスタと Cloudflare の2箇所になる）。
+
 - 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。
 - ワンタイム PIN は、新しい Zero Trust の組織では既定のログイン方法ではないので、Terraform が identity provider として作る。ダッシュボードで既に足してあると apply が衝突するので、その ID で import する。
 - base URL が公開ホスト名なので、port-forward では画面が動かない（API の切り分けにだけ使える）。
@@ -189,8 +199,8 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
-- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com`、`backstage.boykush.com` が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
-- resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
+- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com`、`backstage.boykush.com`（catalog の MCP もここ）が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr` / `backstage`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 実測値。10 時に使える状態にするための逆算がこれ。
 
 | 計測 | 値 |
