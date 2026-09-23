@@ -6,6 +6,18 @@ doctl = "1.166.0"
 # Pinned to the cluster's minor track: kubectl supports only ±1 minor of skew,
 # and a machine-wide 1.30 client is too old to talk to DOKS 1.36.
 kubectl = "1.36.3"
+# Only used by hand: writing the Claude Code token and the first local apply.
+# CI reads the parameter with the copy already on the runner.
+awscli = "2.37.0"
+
+# `aws login` writes a profile, so it needs somewhere to write. Pointing it at
+# the repo keeps the machine-wide ~/.aws/config untouched, and pinning the
+# region stops the interactive prompt on a fresh machine. Only in effect where
+# mise's env is (mise exec / mise run / activate); terraform.yml opts out.
+[env]
+AWS_CONFIG_FILE = "{{config_root}}/.aws/config"
+AWS_PROFILE = "boykush-admin"
+AWS_REGION = "ap-northeast-1"
 
 # Overrides the global lockfile = true. The versions above are already exact, so
 # mise.lock is not kept here for now; deleting it is not enough on its own,
@@ -24,3 +36,23 @@ run = "terraform login app.terraform.io"
 [tasks."k8s:kubeconfig"]
 description = "Merge the DOKS cluster context into ~/.kube/config"
 run = "doctl kubernetes cluster kubeconfig save boykush-cluster"
+
+# The token never passes through git, Terraform state or a repository secret,
+# so this task is the only way it is written — and re-running it is the whole
+# of rotation. Paste the value from `claude setup-token`, then Ctrl-D.
+[tasks."claude:token"]
+description = "Write the Claude Code token to Parameter Store (paste it on stdin)"
+run = """
+set -euo pipefail
+umask 077
+token_file="$(mktemp)"
+trap 'rm -f "$token_file"' EXIT
+cat > "$token_file"
+aws ssm put-parameter \
+  --region ap-northeast-1 \
+  --name /claude-code/oauth-token \
+  --type SecureString \
+  --overwrite \
+  --value "file://$token_file" > /dev/null
+echo "wrote /claude-code/oauth-token"
+"""

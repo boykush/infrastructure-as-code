@@ -38,17 +38,32 @@ jobs:
       contents: read
       pull-requests: write # tfcmt plan/apply comments
       issues: write # tfcmt labels
+      id-token: write # assume the AWS role, see below
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # Credentials for the aws provider. Nothing is stored anywhere: the role is
+      # assumed with this run's OIDC token and the session dies with the job.
+      # Only this repository's main branch can assume it (terraform/aws.tf).
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: arn:aws:iam::509266991346:role/github-actions-terraform
+
       # Installs the toolchain pinned in mise.toml. mise installs the raw
       # terraform binary (no stdout-capturing wrapper), which is what tfcmt
       # needs to parse plan/apply output.
       - name: Setup mise
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          # Tools yes, mise.toml's [env] no. It points AWS_PROFILE at a local
+          # login session, and exporting that here would override the role the
+          # step above assumed. PATH comes from export_path, which is separate.
+          env: false
 
       # Posts terraform plan/apply results as a PR comment (no github-script).
       - name: Install tfcmt

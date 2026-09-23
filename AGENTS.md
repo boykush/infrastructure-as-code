@@ -7,10 +7,11 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
 - `argocd/` — Argo CD 本体 + Image Updater。kustomize の remote base を tag で固定している。
 - `applications/` — アプリごとに `<name>.yaml`（Argo CD の Application）と `<name>/`（その manifest）を並べる。イメージのビルドは各アプリの repo が行い、ここにはその成果物を指す manifest だけが載る。
+- `.github/actions/` — 他の repo から呼ばれる composite action。ここに置くものは**この repo の CI では動かない**ので、壊しても自分の PR は緑のまま通る。
 
 ## Toolchain
 
-- Terraform / doctl / kubectl は mise で固定（`mise.toml`）。セットアップは `mise install`、version 変更は `mise.toml` の編集だけ。
+- Terraform / doctl / kubectl / AWS CLI は mise で固定（`mise.toml`）。セットアップは `mise install`、version 変更は `mise.toml` の編集だけ。AWS CLI は手元専用——CI で `aws` を叩くのは他の repo から呼ばれる composite action だけで、そこは runner 同梱の CLI を使う。
 - `mise.lock` は一旦使わない。グローバル（`~/.config/mise/config.toml`）が `lockfile = true` なので、`mise.toml` で**明示的に `lockfile = false`** を置いて上書きしている——ファイルを消すだけでは次の mise コマンドで再生成される。checksum まで固定するなら `true` に戻し、`mise lock -p linux-x64,linux-arm64,macos-arm64,macos-x64` で全 platform 分を生成する。
 - provider は `.terraform.lock.hcl` で固定（**commit する**）。`versions.tf` の `~> 2.0` は緩いので、実際に使う version を決めているのは lock file。更新は **全 platform を明示**して行う:
   ```sh
@@ -23,6 +24,10 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - state は HCP Terraform（org `boykush` / workspace `infrastructure-as-code`）。Execution Mode = **Local**。remote のままだと HCP 側で実行され、DO token が無い環境で plan が落ちる（workspace 新規作成時の default は remote なので、作り直したら必ず変える）。
 - provider の認証は `DIGITALOCEAN_ACCESS_TOKEN`。provider が優先して読むのは `DIGITALOCEAN_TOKEN` だが、doctl が読むのは `DIGITALOCEAN_ACCESS_TOKEN` だけなので、1変数で両方賄えるこちらに寄せている。
+- **`terraform.yml` の mise setup は `env: false`**。`mise.toml` の `[env]` は手元用で、`mise-action` の既定（`env: true`）だと `AWS_PROFILE` が `GITHUB_ENV` 経由で後続 step に入り、OIDC で assume した認証情報を上書きして plan が落ちる。tool の PATH は `export_path` が別に張るので影響しない。
+- **bootstrap の apply は `-target` で AWS の5リソースに絞る**。root module が1つなので素の plan は state 全体を refresh し、DO と Cloudflare の認証情報まで要求する。AWS のリソースはどちらにも依存していないので、targeting すればそれらの API は呼ばれない。残りは merge 後の CI の full apply が揃える。
+- **`aws login` は profile を書く**ので、`[env]` が `AWS_CONFIG_FILE` を repo の `.aws/config` に向けている（`~/.aws/config` は作られない）。中身は識別子だけだがログインし直せば再生成されるため `.gitignore` 済み。`AWS_REGION` も張ってあるのは、未設定だと `aws login` が対話で訊いてくるため。
+- AWS の認証は、CI は `github-actions-terraform` を GitHub OIDC で assume する（`aws-actions/configure-aws-credentials`）。**手元は `aws login`**——コンソールのサインイン（パスキー）から最大12時間の一時認証情報を取る CLI 2.32.0 以降の機能で、access key も Identity Center も要らない。aws provider は `login_session` を解釈するので、`AWS_PROFILE` 以外に渡すものは無い——**`aws configure export-credentials` で env に固めない**。返るのは15分で切れる認証情報で、env は profile より優先されるため期限切れ後に詰まる。**access key は作らない**。SSO を使っていないのは、単一アカウントで有効化した Identity Center が account instance になり、permission set もアカウント割り当ても持てないため。**role の ARN は workflow と composite action に直接書く**——account id は secret ではなく、variable に逃がすと呼び出し側の repo ごとに set して回ることになる。role を作るのは Terraform 自身なので、**信頼を壊す変更はローカル apply でしか直せない**。
 - CI は secret `TF_API_TOKEN`（HCP backend）、`DIGITALOCEAN_ACCESS_TOKEN`、`CLOUDFLARE_API_TOKEN`（provider）、`ACCESS_OWNER_EMAIL`（`TF_VAR_access_owner_email`。public repo にメールアドレスを置かないため）。tfcmt は built-in の `GITHUB_TOKEN` を使う——owner 全体の default workflow permissions が read に絞られているため、job の `permissions:` で `pull-requests: write` / `issues: write` を戻している。
 
 ## ワークフロー
@@ -97,3 +102,12 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **root filesystem は read-only**。書き込み先は `/tmp` の emptyDir だけ。image の USER は名前（`node`）なので、`runAsNonRoot` を満たすために `runAsUser: 1000` を明示している。
 - **catalog の image の契約**（boykush/github-management の AGENTS.md が決めている側）: `ghcr.io/boykush/github-management-catalog`。可変の `main` と commit SHA 7桁の2つが push され、追うのは `main`（Image Updater が digest で）。中身は `/catalog/*.yaml` で、init container の `cp -R /catalog/. /shared/` のために busybox を土台にしている。GHCR の package は public なので、GitHub の credential も pull 用の Secret も要らない。
 - **Backstage 本体の tag は手で上げる**（`cloudflared` と同じく Image Updater の対象外。Image Updater が追うのは catalog の image だけ）。
+
+## Claude Code Actions のトークン（`terraform/aws.tf`）
+
+- **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
+- **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。
+- **`local.account_id` は使えない**。`cloudflare.tf` が同名の local を持っている（Cloudflare の account id）。AWS 側は `local.aws_account_id`。
+- **composite action は呼ぶ側で SHA 固定する**。zizmor が未固定の `uses:` を落とすので、自分の repo の action でも例外にならない（既存の `boykush/scraps@<sha>` と同じ扱い）。追従は Renovate。
+- **`output-env-credentials: false` を外さない**。AWS の認証情報を job の環境に置かない設定で、後続の Claude の step が任意コードを実行することへの唯一の緩和になっている。読み取り step には `env:` で明示的に渡している。
+- トークンを構造的に無くす道は [Claude 自身の WIF](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation)（`anthropic_federation_rule_id`、`claude-code-action` が対応済み）だが、**API 従量課金**になり Max のシートでは使えない。この repo が AWS を選んだのはそのため。
