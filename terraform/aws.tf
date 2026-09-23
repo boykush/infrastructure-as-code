@@ -127,8 +127,10 @@ resource "aws_kms_external_key" "github_app" {
 resource "aws_kms_alias" "github_app" {
   for_each = aws_kms_external_key.github_app
 
+  # The resource id of an external key is the key id itself; there is no
+  # key_id attribute on it, unlike aws_kms_key.
   name          = "alias/github-app-${each.key}"
-  target_key_id = each.value.key_id
+  target_key_id = each.value.id
 }
 
 # One role per app. A single role over every key would let a run in
