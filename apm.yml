@@ -8,4 +8,5 @@ targets:
 dependencies:
   apm:
     - boykush/ai-plugins/plugins/adr-remote-mcp#4b9ae00c41111225446cd063da0f38a89ae76164
+    - boykush/ai-plugins/plugins/catalog-remote-mcp#f2a0e7113e85ff96e027fe738e174de9126d40cc
   mcp: []
