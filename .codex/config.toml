@@ -1,3 +1,7 @@
 [mcp_servers.adr]
 url = "https://adr-mcp.boykush.com/mcp"
 id = ""
+
+[mcp_servers.catalog]
+url = "https://backstage.boykush.com/api/mcp-actions/v1/catalog"
+id = ""
