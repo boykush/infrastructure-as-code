@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。構成値と手順は README を見る。
 
