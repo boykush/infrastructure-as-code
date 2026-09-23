@@ -297,20 +297,11 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 **1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。
 
-**2. ローカルで apply する。** CI の role は、これから作る role の ARN に対する `iam:*` をまだ持っていないので、CI に任せると `AccessDenied` で止まる——クラスタや OIDC の bootstrap と同じ例外。認証は [bootstrap](#bootstrap初回のみ-1) の 1〜2 と同じ（`aws login` と `TF_VAR_access_owner_email`）。
+**2. merge する。** **apply はローカルでやらない**。CI の role が持つ `iam:*` は ARN の列挙だが、そこに載る役割名は `github_apps` から**文字列で**組んである——resource の ARN を読むと policy が role の後ろに並び、「作る権限を与える更新」が「作る」より後に来てしまう。`depends_on` で policy の更新を先に置いてあるので、key も role も同じ apply の中で作れる。
 
-```sh
-mise exec -- terraform -chdir=terraform apply \
-  -target=aws_kms_external_key.github_app \
-  -target=aws_kms_alias.github_app \
-  -target=aws_iam_role.github_app \
-  -target=aws_iam_role_policy.github_app \
-  -target=aws_iam_role.image_updater \
-  -target=aws_iam_role_policy.image_updater \
-  -target=aws_iam_role_policy.terraform
-```
+IAM の反映は結果整合なので、広がった直後の `CreateKey` が稀に `AccessDenied` を返すことがある。その時は workflow を再実行する（apply は冪等）。
 
-**3. 鍵を入れる。** **KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。KMS は wrap した material しか受け取らないので、その手順が `app:key-import` で、**OpenSSL 3 が要る**——macOS の `openssl` は LibreSSL で `-id-aes256-wrap-pad` を持たない。
+**3. 鍵を入れる。** ここだけは手元でやる——PEM が手元にしか無いため。 **KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。KMS は wrap した material しか受け取らないので、その手順が `app:key-import` で、**OpenSSL 3 が要る**——macOS の `openssl` は LibreSSL で `-id-aes256-wrap-pad` を持たない。
 
 ```sh
 brew install openssl@3

@@ -15,6 +15,12 @@ locals {
   claude_code_parameter_arn   = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
   image_updater_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.image_updater_parameter_name}"
 
+  # The roles below are named here rather than read off the resources, because
+  # the policy CI applies with has to name them before they exist — see the
+  # ordering note there. Same construction as the parameter ARNs above.
+  image_updater_role_name = "github-actions-image-updater"
+  github_app_role_names   = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
+
   # GitHub puts immutable ids in the sub claim for repositories created after
   # 2026-07-15, and for older ones once they opt in. Both spellings are listed
   # so a repository's age, and any later opt-in, never breaks the trust.
@@ -109,6 +115,11 @@ resource "aws_iam_role_policy" "claude_code" {
 resource "aws_kms_external_key" "github_app" {
   for_each = { for app in var.github_apps : app.name => app }
 
+  # CI runs as a role whose policy this same apply widens, so the widening has
+  # to land first. Without this the graph is free to try the key beforehand,
+  # and kms:CreateKey comes back AccessDenied.
+  depends_on = [aws_iam_role_policy.terraform]
+
   description = "Private key of the ${each.key} GitHub App"
 
   # A GitHub App JWT is RS256, which fixes both of these.
@@ -182,7 +193,11 @@ data "aws_iam_policy_document" "github_app" {
 resource "aws_iam_role" "github_app" {
   for_each = local.github_app_subjects
 
-  name               = "github-actions-github-app-${each.key}"
+  # Same ordering as the keys: iam:CreateRole on this ARN is granted by the
+  # policy update in this apply.
+  depends_on = [aws_iam_role_policy.terraform]
+
+  name               = local.github_app_role_names[each.key]
   description        = "Sign the ${each.key} GitHub App's JWT with its KMS key"
   assume_role_policy = data.aws_iam_policy_document.github_app_trust[each.key].json
 }
@@ -232,7 +247,9 @@ data "aws_iam_policy_document" "image_updater" {
 }
 
 resource "aws_iam_role" "image_updater" {
-  name               = "github-actions-image-updater"
+  depends_on = [aws_iam_role_policy.terraform]
+
+  name               = local.image_updater_role_name
   description        = "Read the Image Updater app's private key from Parameter Store, for this repository's credential workflow"
   assume_role_policy = data.aws_iam_policy_document.image_updater_trust.json
 }
@@ -278,12 +295,18 @@ data "aws_iam_policy_document" "terraform" {
     effect  = "Allow"
     actions = ["iam:*"]
 
+    # The roles this apply is about to create are named as strings: reading the
+    # ARNs off the resources would order this policy after them, and creating
+    # them is exactly what it grants. Everything else is an existing resource.
     resources = concat([
       aws_iam_openid_connect_provider.github.arn,
       aws_iam_role.claude_code.arn,
-      aws_iam_role.image_updater.arn,
       aws_iam_role.terraform.arn,
-    ], values(aws_iam_role.github_app)[*].arn)
+      "arn:aws:iam::${local.aws_account_id}:role/${local.image_updater_role_name}",
+      ], [
+      for name in values(local.github_app_role_names) :
+      "arn:aws:iam::${local.aws_account_id}:role/${name}"
+    ])
   }
 
   # Neither of these names a resource: the key does not exist yet when it is
@@ -294,9 +317,8 @@ data "aws_iam_policy_document" "terraform" {
     resources = ["*"]
   }
 
-  # The key ARNs are known only after creation, so scoping to them would order
-  # this policy behind the keys and leave the first apply unable to create them.
-  # Held to the account's own keys instead, and to managing them: kms:Sign,
+  # A key's ARN is not knowable in advance the way a role's name is, so this is
+  # held to the account's own keys — and to managing them: kms:Sign,
   # kms:ImportKeyMaterial and kms:PutKeyPolicy are all absent, so a run here can
   # neither sign as an app, replace what a key holds, nor open one to itself.
   statement {
