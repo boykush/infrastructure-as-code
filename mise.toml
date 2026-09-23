@@ -50,7 +50,13 @@ set -euo pipefail
 umask 077
 token_file="$(mktemp)"
 trap 'rm -f "$token_file"' EXIT
-cat > "$token_file"
+# A pasted token wraps at the terminal width, so the copy can carry line
+# breaks. Strip every space before storing: the value has none of its own.
+tr -d '[:space:]' > "$token_file"
+case "$(cat "$token_file")" in
+  sk-ant-oat*) ;;
+  *) echo "expected a token starting with sk-ant-oat, from 'claude setup-token'" >&2; exit 1 ;;
+esac
 aws ssm put-parameter \
   --region ap-northeast-1 \
   --name /claude-code/oauth-token \

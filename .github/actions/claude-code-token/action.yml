@@ -71,11 +71,18 @@ runs:
           --with-decryption \
           --query Parameter.Value \
           --output text)"
-        # text output prints a literal None for an empty parameter, which would
-        # otherwise reach Claude as if it were a token.
-        if [ -z "${token}" ] || [ "${token}" = "None" ]; then
-          echo "::error::${PARAMETER_NAME} is empty — write the token first, see the README"
-          exit 1
-        fi
+        # text output prints a literal None for an empty parameter, and a value
+        # carrying a line break would reach GITHUB_OUTPUT as two lines, of which
+        # only the first is masked. Refuse both without echoing the value.
+        case "${token}" in
+          "" | None)
+            echo "::error::${PARAMETER_NAME} is empty — write the token first, see the README"
+            exit 1
+            ;;
+          *[[:space:]]*)
+            echo "::error::${PARAMETER_NAME} contains whitespace — rewrite it with 'mise run claude:token'"
+            exit 1
+            ;;
+        esac
         echo "::add-mask::${token}"
         echo "token=${token}" >> "${GITHUB_OUTPUT}"
