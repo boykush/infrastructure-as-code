@@ -24,11 +24,16 @@ organization:
 backend:
   baseUrl: https://backstage.boykush.com
   auth:
-    # The agents that read the catalog over MCP carry no identity to present,
-    # and the policy cannot be lifted for one plugin from configuration alone.
-    # What that opens is bounded outside: Cloudflare Access lets only the
-    # catalog MCP server's path through without a login.
-    dangerouslyDisableDefaultAuthPolicy: true
+    # Backstage runs no action for an anonymous caller, a check its auth policy
+    # does not govern, so the MCP server needs a principal. Cloudflare sets this
+    # on the one path Access lets through (terraform/access.tf), where the value
+    # has to match. It is a name tag rather than a credential: what it reaches
+    # is read-only, so it is written here instead of synced from a secret.
+    externalAccess:
+      - type: static
+        options:
+          token: catalog-mcp-public-reader
+          subject: catalog-mcp
 auth:
   providers:
     guest:

@@ -66,7 +66,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）。
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -130,7 +130,11 @@ Access を外してはいけない。Backstage は guest で誰でもサイン�
 claude mcp add --transport http catalog https://backstage.boykush.com/api/mcp-actions/v1/catalog
 ```
 
-無記名で通す以上、Backstage 側の default auth policy は落としてある（`dangerouslyDisableDefaultAuthPolicy`）。plugin 単位で外す方法が設定には無いため。**つまり公開面を決めているのは Access の path だけ**で、ここを広げると backend 全体が無記名で開く。締めたいなら、static token を `backend.auth.externalAccess` に置き、Cloudflare の Transform Rule でこの path にだけ `Authorization` を足す形にできる（token がクラスタと Cloudflare の2箇所になる）。
+Access を抜けただけでは足りない。**Backstage は action を無記名では実行しない**——auth policy とは別のチェックで、設定からは外せない（`tools/list` は通るのに `tools/call` が `NotAllowedError` になる）。そこで `backend.auth.externalAccess` に static token を置き、Cloudflare の Transform Rule が同じ path にだけ `Authorization: Bearer` を足す。エージェント側は何も持たない。
+
+**この値は秘密ではない。** Backstage が要求するのは「空白を含まない8文字以上」だけで、一致すれば `subject` がそのまま principal になる——鍵ではなく名札で、通せるのは read-only の catalog action だけ。だから `terraform/access.tf` と `applications/backstage/app-config.yaml` に literal で書いてある（**両方を揃える**。ズレたら 401 で、開きっぱなしにはならない）。秘密にすると、同期と rotate と「Secret が無いと Pod が上がらない」依存を抱える代わりに守れるのは Access の path を誤って広げた場合だけで、割に合わない。
+
+裏を返すと、**境界は Access の path 1本**しかない。`terraform/access.tf` の `domain` と `destinations` を触る変更はそこが全てなので、レビューではそこを見る。
 
 - 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。
 - ワンタイム PIN は、新しい Zero Trust の組織では既定のログイン方法ではないので、Terraform が identity provider として作る。ダッシュボードで既に足してあると apply が衝突するので、その ID で import する。

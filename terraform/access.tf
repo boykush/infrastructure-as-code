@@ -59,3 +59,29 @@ resource "cloudflare_zero_trust_access_application" "catalog_mcp" {
     precedence = 1
   }]
 }
+
+# The principal the bypass leaves missing. Backstage will not run an action for
+# an anonymous caller, so Cloudflare presents this on the same path it lets
+# through — the agents hold nothing. The value is a name tag, not a credential
+# (see applications/backstage/app-config.yaml, where it has to match).
+resource "cloudflare_ruleset" "catalog_mcp_principal" {
+  zone_id = local.zone_id
+  name    = "backstage catalog MCP"
+  kind    = "zone"
+  phase   = "http_request_late_transform"
+
+  rules = [{
+    ref         = "catalog_mcp_principal"
+    description = "Name the caller on the catalog MCP path"
+    expression  = "http.host eq \"backstage.${var.domain}\" and starts_with(http.request.uri.path, \"/api/mcp-actions/v1/catalog\")"
+    action      = "rewrite"
+    action_parameters = {
+      headers = {
+        Authorization = {
+          operation = "set"
+          value     = "Bearer catalog-mcp-public-reader"
+        }
+      }
+    }
+  }]
+}
