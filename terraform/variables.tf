@@ -133,3 +133,42 @@ variable "claude_code_repositories" {
     error_message = "Each repository can appear once: a duplicate only lengthens the trust policy."
   }
 }
+
+variable "image_updater_parameter_name" {
+  type        = string
+  description = "Parameter Store path holding the private key of the Image Updater GitHub App. The value is written with the CLI, never by Terraform."
+  default     = "/image-updater/app-private-key"
+
+  validation {
+    condition     = startswith(var.image_updater_parameter_name, "/")
+    error_message = "image_updater_parameter_name must start with a slash: the ARN is built by appending it to :parameter."
+  }
+}
+
+variable "github_apps" {
+  type = list(object({
+    name         = string
+    repositories = list(string)
+  }))
+  description = "GitHub Apps whose private key is imported into KMS, each with the repositories whose workflows may sign as it. What a repository is trusted with is the signature, never the key."
+
+  default = [
+    {
+      name         = "terraform-ci"
+      repositories = ["github-management"]
+    },
+    {
+      name         = "renovate"
+      repositories = ["renovate-runner"]
+    },
+    {
+      name         = "pr-approver"
+      repositories = ["renovate-runner"]
+    },
+  ]
+
+  validation {
+    condition     = length(var.github_apps) == length(distinct([for app in var.github_apps : app.name]))
+    error_message = "Each app name can appear once: it names the key, its alias and the role."
+  }
+}
