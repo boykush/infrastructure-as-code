@@ -33,3 +33,29 @@ resource "cloudflare_zero_trust_access_application" "backstage" {
     precedence = 1
   }]
 }
+
+# The one path that answers without a login: the MCP server coding agents read
+# the catalog with. They have no identity for Access to check, and Backstage
+# cannot lift its auth policy for a single plugin, so the narrowing happens
+# here. Bypass skips enforcement; Allow would still send them to the PIN form.
+resource "cloudflare_zero_trust_access_policy" "public" {
+  account_id = local.account_id
+  name       = "Public"
+  decision   = "bypass"
+  include    = [{ everyone = {} }]
+}
+
+# Scoped to the named server. Access evaluates the most specific path first, so
+# everything else under backstage.<domain> — including /api/mcp-actions/v1
+# itself, which always serves every action — stays with the application above.
+resource "cloudflare_zero_trust_access_application" "catalog_mcp" {
+  account_id   = local.account_id
+  name         = "backstage-catalog-mcp"
+  type         = "self_hosted"
+  domain       = "backstage.${var.domain}/api/mcp-actions/v1/catalog"
+  destinations = [{ type = "public", uri = "backstage.${var.domain}/api/mcp-actions/v1/catalog" }]
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.public.id
+    precedence = 1
+  }]
+}
