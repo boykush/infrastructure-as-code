@@ -157,13 +157,15 @@ mise exec -- aws login
 
 ブラウザが開くのでパスキーで認証する。
 
-**profile とリージョンは repo に閉じている。** `aws login` は profile を1つ書くので、`mise.toml` の `[env]` が `AWS_CONFIG_FILE` を `.aws/config` に、`AWS_PROFILE` を `boykush-admin` に、`AWS_REGION` を `ap-northeast-1` に向けている——マシン全体の `~/.aws/config` には何も書かれず、リージョンを対話で訊かれることもない。書かれる中身は識別子だけだが、ログインし直せば再生成される生成物なので `.aws/` は commit しない。
+**profile とリージョンは repo に閉じている。** `aws login` は profile を1つ書くので、`mise.toml` の `[env]` が `AWS_CONFIG_FILE` を `.aws/config` に、`AWS_REGION` を `ap-northeast-1` に向けている——マシン全体の `~/.aws/config` には何も書かれず、リージョンを対話で訊かれることもない。書かれる中身は識別子だけだが、ログインし直せば再生成される生成物なので `.aws/` は commit しない。
 
 ```
-[profile boykush-admin]
+[default]
 login_session = arn:aws:iam::509266991346:root
 region = ap-northeast-1
 ```
+
+**profile 名は `default` で、`AWS_PROFILE` は `[env]` に置かない。** mise の `[env]` は CI にも届く——tool は shim として PATH に載り、shim は実行時に `[env]` を適用するため、`env: false` で `GITHUB_ENV` を塞いでも回り込む。名前付き profile を指していると、CI の terraform が `.aws/config` の無い runner で `failed to get shared config profile` と落ちる。
 
 一時認証情報の方は `~/.aws/login/cache/` に入る（`AWS_LOGIN_CACHE_DIRECTORY` で移せるが、12時間で失効するものなので既定のまま）。
 
