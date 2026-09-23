@@ -12,6 +12,21 @@ locals {
   terraform_repository = "infrastructure-as-code"
 
   claude_code_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
+
+  # GitHub puts immutable ids in the sub claim for repositories created after
+  # 2026-07-15, and for older ones once they opt in. Both spellings are listed
+  # so a repository's age, and any later opt-in, never breaks the trust.
+  claude_code_subjects = flatten([
+    for repository in var.claude_code_repositories : [
+      "repo:${var.github_owner}/${repository}:*",
+      "repo:${var.github_owner}@${var.github_owner_id}/${repository}@*:*",
+    ]
+  ])
+
+  terraform_subjects = [
+    "repo:${var.github_owner}/${local.terraform_repository}:*",
+    "repo:${var.github_owner}@${var.github_owner_id}/${local.terraform_repository}@*:*",
+  ]
 }
 
 # One provider for all of GitHub Actions. The thumbprint is still required by
@@ -45,7 +60,7 @@ data "aws_iam_policy_document" "claude_code_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [for repository in var.claude_code_repositories : "repo:${var.github_owner}/${repository}:*"]
+      values   = local.claude_code_subjects
     }
   }
 }
@@ -95,7 +110,7 @@ data "aws_iam_policy_document" "terraform_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}/${local.terraform_repository}:*"]
+      values   = local.terraform_subjects
     }
   }
 }

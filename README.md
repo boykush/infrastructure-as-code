@@ -244,6 +244,8 @@ mise exec -- aws logout
 
 composite action も他の action と同じく **SHA で固定する**（zizmor が未固定を落とす）。追従は Renovate に任せる。
 
+**`sub` クレームの形式は repo の作成時期で違う**。[2026-07-15 以降に作られた repo](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/) は `repo:<owner>@<owner_id>/<repo>@<repo_id>:...` と ID 入りになり、それ以前の repo は opt-in するまで名前だけ。trust policy は**両方を列挙している**ので足す側は意識しなくていいが、片方しか無いと作成時期次第で `Not authorized to perform sts:AssumeRoleWithWebIdentity` になる——CI から見えるのはこのメッセージだけなので、実際に届いた `sub` は CloudTrail の `AssumeRoleWithWebIdentity` イベントで確かめる。
+
 ### 限界
 
 **runner の上にはトークンが載る**。repo secret と比べて消えるのは「GitHub 側に長命な秘密が残ること」「ローテーションが repo の数だけ要ること」で、run 中の漏洩リスクは変わらない——[OIDC でも残る漏洩リスク](https://blog.flatt.tech/entry/2026-github-actions-security-part3)が言う通り。

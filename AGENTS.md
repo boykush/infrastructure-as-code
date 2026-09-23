@@ -107,6 +107,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
 - **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。
+- **`sub` クレームは repo の作成時期で形式が違う**。2026-07-15 以降に作られた repo は ID 入り（`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`）、それ以前は名前だけで opt-in 待ち。`local.claude_code_subjects` / `local.terraform_subjects` が両形式を並べているのはこのため。**片方に削ってはいけない**——`infrastructure-as-code` は新形式、`wiki` と `scraps` は旧形式で、実際に混在している。
 - **`local.account_id` は使えない**。`cloudflare.tf` が同名の local を持っている（Cloudflare の account id）。AWS 側は `local.aws_account_id`。
 - **composite action は呼ぶ側で SHA 固定する**。zizmor が未固定の `uses:` を落とすので、自分の repo の action でも例外にならない（既存の `boykush/scraps@<sha>` と同じ扱い）。追従は Renovate。
 - **`output-env-credentials: false` を外さない**。AWS の認証情報を job の環境に置かない設定で、後続の Claude の step が任意コードを実行することへの唯一の緩和になっている。読み取り step には `env:` で明示的に渡している。

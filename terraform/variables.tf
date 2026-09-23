@@ -102,6 +102,12 @@ variable "github_owner" {
   default     = "boykush"
 }
 
+variable "github_owner_id" {
+  type        = number
+  description = "Numeric id of the owner, as GitHub writes it into the immutable sub claim. Unlike the name it never changes, so pinning it is what keeps a recycled name from matching."
+  default     = 23194090
+}
+
 variable "claude_code_parameter_name" {
   type        = string
   description = "Parameter Store path holding the Claude Code OAuth token. The value is written with the CLI, never by Terraform."
