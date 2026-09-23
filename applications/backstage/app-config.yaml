@@ -14,8 +14,8 @@ app:
     - page:catalog-graph:
         config:
           rootEntityRefs: [user:default/boykush]
-          selectedKinds: [user, component, api]
-          selectedRelations: [ownerOf, ownedBy, dependsOn, dependencyOf, providesApi, apiProvidedBy, consumesApi, apiConsumedBy]
+          selectedKinds: [user, component, api, system, resource]
+          selectedRelations: [ownerOf, ownedBy, dependsOn, dependencyOf, providesApi, apiProvidedBy, consumesApi, apiConsumedBy, partOf, hasPart]
           unidirectional: false
           mergeRelations: true
           direction: LR
