@@ -9,3 +9,10 @@ provider "digitalocean" {}
 # Zone: DNS (Edit) and Zone: Zone (Read), the latter because the zone and
 # account IDs are looked up by name instead of being committed.
 provider "cloudflare" {}
+
+# Authentication comes from the environment: a local profile or SSO session on
+# a workstation, and in CI the github-actions-terraform role assumed through
+# GitHub's OIDC. There is no access key to hold anywhere.
+provider "aws" {
+  region = var.aws_region
+}

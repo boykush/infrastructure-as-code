@@ -36,3 +36,18 @@ output "tunnel_token" {
   value       = data.cloudflare_zero_trust_tunnel_cloudflared_token.this.token
   sensitive   = true
 }
+
+# The two values a workflow needs to name. Neither is a credential — an ARN is
+# useless without an OIDC token whose sub the trust policy accepts — but the
+# account id is in both, so they are read locally rather than echoed by tfcmt.
+output "claude_code_role_arn" {
+  description = "Role each repository's Claude workflow assumes to read the token."
+  value       = aws_iam_role.claude_code.arn
+  sensitive   = true
+}
+
+output "terraform_role_arn" {
+  description = "Role CI assumes to apply this configuration (written into .github/workflows/terraform.yml)."
+  value       = aws_iam_role.terraform.arn
+  sensitive   = true
+}

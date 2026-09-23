@@ -89,3 +89,47 @@ variable "access_owner_email" {
     error_message = "access_owner_email must be an email address; check the ACCESS_OWNER_EMAIL secret."
   }
 }
+
+variable "aws_region" {
+  type        = string
+  description = "Region the Claude Code token and the IAM identities live in. IAM is global; the region only decides where Parameter Store keeps the value."
+  default     = "ap-northeast-1"
+}
+
+variable "github_owner" {
+  type        = string
+  description = "Account the trusted repositories belong to. It is the owner half of the sub claim (repo:<owner>/<repo>:*), so it has to match GitHub exactly."
+  default     = "boykush"
+}
+
+variable "github_owner_id" {
+  type        = number
+  description = "Numeric id of the owner, as GitHub writes it into the immutable sub claim. Unlike the name it never changes, so pinning it is what keeps a recycled name from matching."
+  default     = 23194090
+}
+
+variable "claude_code_parameter_name" {
+  type        = string
+  description = "Parameter Store path holding the Claude Code OAuth token. The value is written with the CLI, never by Terraform."
+  default     = "/claude-code/oauth-token"
+
+  validation {
+    condition     = startswith(var.claude_code_parameter_name, "/")
+    error_message = "claude_code_parameter_name must start with a slash: the ARN is built by appending it to :parameter."
+  }
+}
+
+variable "claude_code_repositories" {
+  type        = list(string)
+  description = "Repositories whose workflows may read the Claude Code token. Adding one here is the whole of onboarding it; nothing is set on the repository itself."
+
+  default = [
+    "wiki",
+    "scraps",
+  ]
+
+  validation {
+    condition     = length(var.claude_code_repositories) == length(distinct(var.claude_code_repositories))
+    error_message = "Each repository can appear once: a duplicate only lengthens the trust policy."
+  }
+}

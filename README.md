@@ -142,9 +142,137 @@ Access を抜けただけでは足りない。**Backstage は action を無記�
 
 catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
 
+## Claude Code Actions のトークン（AWS）
+
+`boykush` は **User アカウントなので organization secret が無い**。Claude Code Actions を動かす repo ごとに `CLAUDE_CODE_OAUTH_TOKEN` を置くしかなく、実際 wiki は OAuth トークン、scraps は API キーと割れていた。トークンを AWS に1つ置き、**各 repo はその run の OIDC で読む**ことにして、repo 側から秘密を無くす。
+
+| 置き場 | 中身 |
+| --- | --- |
+| Parameter Store `/claude-code/oauth-token` | トークン本体（SecureString、既定の `aws/ssm` キー） |
+| IAM role `github-actions-claude-code` | 読む権限。信頼するのは `claude_code_repositories` に挙げた repo だけ |
+| IAM role `github-actions-terraform` | CI がこの設定を apply するための role |
+| `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
+
+費用は実質 **$0**——standard parameter は保管も API 呼び出しも無料で、IAM と STS にも課金は無い。SecureString の復号で KMS の request が立つが、既定の `aws/ssm` キーに月額は無く、$0.03/10,000 なので月数百回なら $0.01 に届かない。
+
+**Terraform はトークンを持たない**。`aws_ssm_parameter` は refresh のたびに値を読み戻すので、resource にすると HCP の state にトークンが載る。だから parameter だけは CLI で書き、Terraform が持つのは信頼と権限（`terraform/aws.tf`）だけにしてある。
+
+### bootstrap（初回のみ）
+
+CI はここで作る role を assume して動くので、**その role を作る最初の apply だけローカルで行う**。クラスタの初回 bootstrap と同じ例外で、merge する前に、この変更が載っているブランチで実行する。
+
+**1. コンソールの認証情報で CLI にログインする。** root に MFA（パスキー）を付ける。**access key は作らない**——root のものは AWS 自身が禁じているし、IAM ユーザーのものも要らない。
+
+`aws login` は**コンソールのサインインをそのまま使って最大12時間の一時認証情報を取る**（CLI 2.32.0 以降）。Identity Center も Organizations も access key も要らず、root ならば追加の権限も要らない（IAM ユーザーで使うなら `SignInLocalDevelopmentAccess` を付ける）。
+
+```sh
+mise exec -- aws login
+```
+
+ブラウザが開くのでパスキーで認証する。
+
+**profile とリージョンは repo に閉じている。** `aws login` は profile を1つ書くので、`mise.toml` の `[env]` が `AWS_CONFIG_FILE` を `.aws/config` に、`AWS_REGION` を `ap-northeast-1` に向けている——マシン全体の `~/.aws/config` には何も書かれず、リージョンを対話で訊かれることもない。書かれる中身は識別子だけだが、ログインし直せば再生成される生成物なので `.aws/` は commit しない。
+
+```
+[default]
+login_session = arn:aws:iam::509266991346:root
+region = ap-northeast-1
+```
+
+**profile 名は `default` で、`AWS_PROFILE` は `[env]` に置かない。** mise の `[env]` は CI にも届く——tool は shim として PATH に載り、shim は実行時に `[env]` を適用するため、`env: false` で `GITHUB_ENV` を塞いでも回り込む。名前付き profile を指していると、CI の terraform が `.aws/config` の無い runner で `failed to get shared config profile` と落ちる。
+
+一時認証情報の方は `~/.aws/login/cache/` に入る（`AWS_LOGIN_CACHE_DIRECTORY` で移せるが、12時間で失効するものなので既定のまま）。
+
+**IAM Identity Center（SSO）は使っていない。** 単一アカウントで有効化すると account instance になり、permission set も AWS アカウントの割り当ても持てない——CLI 用の認証情報はそこからは出てこない。組織インスタンスにするには AWS Organizations が要るが、`aws login` で足りるので構えを取っていない。
+
+**2. 変数を1つ渡す。** root module は1つなので、AWS だけ足すときも宣言済みの変数には値が要る。**実値を入れること**——次の手順では使われないが、同じシェルで後から full apply すると Access のポリシーがその値で書き換わる。
+
+```sh
+export TF_VAR_access_owner_email=...
+```
+
+**AWS は何も export しない。** aws provider は `login_session` を解釈するので、`AWS_PROFILE` が指すプロファイルからそのまま認証する。`aws configure export-credentials` で環境変数に固める手もあるが、**それが返すのは15分で切れる認証情報**で、作業の途中で期限が切れるうえ、env の認証情報は profile より優先されるので復旧の邪魔になる。
+
+```sh
+mise exec -- aws sts get-caller-identity
+```
+
+`509266991346` が返れば通っている。
+
+**3. AWS のリソースだけ apply する。** **DO と Cloudflare の認証情報は要らない**——この5つはどちらにも依存していないので、`-target` で絞るとそれらの API は呼ばれず、refresh も走らない。素の `apply` は state 全体を触りにいくので、この段階では使わない。
+
+```sh
+mise exec -- terraform -chdir=terraform apply \
+  -target=aws_iam_openid_connect_provider.github \
+  -target=aws_iam_role.claude_code \
+  -target=aws_iam_role_policy.claude_code \
+  -target=aws_iam_role.terraform \
+  -target=aws_iam_role_policy.terraform
+```
+
+`Plan: 5 to add, 0 to change, 0 to destroy.` を確かめてから `yes`。`-target` には「通常運用向けではない」という警告が出るが、bootstrap はまさにその例外で、**残りは merge 後に CI が full apply で揃える**。
+
+**4. トークンを入れる。** `claude setup-token` の出力を貼って Ctrl-D。確認は値を出さずに version だけ見る。
+
+```sh
+mise run claude:token
+mise exec -- aws ssm get-parameter --region ap-northeast-1 --name /claude-code/oauth-token \
+  --query 'Parameter.{Version:Version,Type:Type}'
+```
+
+**5. セッションを終了する。**
+
+```sh
+mise exec -- aws logout
+```
+
+長命の鍵をどこにも作っていないので、消すものは無い。次に手元から触るとき——トークンの入れ替えや、信頼を壊したときの復旧 apply——は `aws login` をやり直すだけ。
+
+**3 が済むまで PR の `terraform plan` は落ちる**（role がまだ無いため）。merge を止めるのは zizmor だけなので、plan の赤は無視して進められる。merge 後の push で初めて CI が `github-actions-terraform` として apply するので、**権限の過不足が出るとしたらそこ**——`iam:*` を3つの ARN に絞ってあるので、resource 指定を受け付けない IAM アクションがあれば `AccessDenied` で分かる。
+
+経路全体が通ったことを確かめられるのは、wiki で `@claude` を1回動かしたときだけ。OIDC は手元から再現できない。
+
+**role の ARN は repo に直接書いてある**（`.github/workflows/terraform.yml` と `.github/actions/claude-code-token/action.yml`）。account id が public repo に載るのは承知の上で——AWS 自身が account id を secret ではないとしており、ARN 単体では OIDC の `sub` が一致しない限り何もできない。variable に逃がすと呼び出し側の repo ごとに set して回ることになり、秘密を1箇所に寄せた意味が薄れる。
+
+### ローテーション
+
+`mise exec -- aws login` してから `mise run claude:token` を流すだけ。**`claude setup-token` が出すトークンの有効期間は1年**なので、定期の入れ替えはその周期。漏洩を疑ったときは即座に同じ手順で差し替える。**22 repo に `gh secret set` して回る必要が無い**のがこの構成の実利で、現実的に回せる頻度が上がる。
+
+### repo を足す
+
+1. `terraform/variables.tf` の `claude_code_repositories` に1行足す（これで trust policy が広がる）
+2. その repo の workflow に2 step 足す
+
+```yaml
+    permissions:
+      id-token: write # 以下は既存の permissions に足す
+
+    steps:
+      - name: Fetch the Claude Code token
+        id: claude-token
+        uses: boykush/infrastructure-as-code/.github/actions/claude-code-token@<sha> # main
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
+        with:
+          claude_code_oauth_token: ${{ steps.claude-token.outputs.token }}
+```
+
+composite action も他の action と同じく **SHA で固定する**（zizmor が未固定を落とす）。追従は Renovate に任せる。
+
+**`sub` クレームの形式は repo の作成時期で違う**。[2026-07-15 以降に作られた repo](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/) は `repo:<owner>@<owner_id>/<repo>@<repo_id>:...` と ID 入りになり、それ以前の repo は opt-in するまで名前だけ。trust policy は**両方を列挙している**ので足す側は意識しなくていいが、片方しか無いと作成時期次第で `Not authorized to perform sts:AssumeRoleWithWebIdentity` になる——CI から見えるのはこのメッセージだけなので、実際に届いた `sub` は CloudTrail の `AssumeRoleWithWebIdentity` イベントで確かめる。
+
+### 限界
+
+**runner の上にはトークンが載る**。repo secret と比べて消えるのは「GitHub 側に長命な秘密が残ること」「ローテーションが repo の数だけ要ること」で、run 中の漏洩リスクは変わらない——[OIDC でも残る漏洩リスク](https://blog.flatt.tech/entry/2026-github-actions-security-part3)が言う通り。
+
+緩和は2つだけ効かせてある。composite action は `output-env-credentials: false` で **AWS の認証情報を job の環境に置かず**、読み取り step にだけ渡す。role が読めるのは parameter 1本だけで、他の AWS 権限は持たない。**Claude の step が任意コードを実行する以上、そこから先は分離できない**——認証 step と実行 step を別 job にする定石が、この workload では使えない。
+
+構造的に無くすなら [Claude 自身の WIF](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation)（`anthropic_federation_rule_id`）で、トークンそのものが不要になる。ただし organization の service account として **API 従量課金**になり、Max のシートは使えない。
+
 ## Toolchain
 
-Terraform / doctl / kubectl を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
+Terraform / doctl / kubectl / AWS CLI を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
 
 ```sh
 mise install   # mise.toml のバージョンで導入
