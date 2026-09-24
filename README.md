@@ -91,12 +91,12 @@ Image Updater の git write-back には main への push 権限が要る（Argo 
 
 credential をクラスタに入れるのは Actions の **Image Updater Credential**（`workflow_dispatch`）。手元に DO の PAT を持たなくてよく、鍵を替えたときもクラスタを作り直したときも同じ workflow を回すだけで戻る。
 
-先に一度だけ App の3つの値を登録する。private key だけが secret で、2つの id は識別子なので variable にしてある。
+先に一度だけ App の3つの値を登録する。2つの id は識別子なので variable、**private key は GitHub に置かず Parameter Store に入れる**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
 
 ```sh
 gh variable set IMAGE_UPDATER_APP_ID --body 4703313
 gh variable set IMAGE_UPDATER_APP_INSTALLATION_ID --body <Installation ID>
-gh secret set IMAGE_UPDATER_APP_PRIVATE_KEY < <app>.private-key.pem
+mise run image-updater:key < <app>.private-key.pem
 ```
 
 ```sh
@@ -270,6 +270,98 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 構造的に無くすなら [Claude 自身の WIF](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation)（`anthropic_federation_rule_id`）で、トークンそのものが不要になる。ただし organization の service account として **API 従量課金**になり、Max のシートは使えない。
 
+## GitHub App の秘密鍵（AWS KMS）
+
+**GitHub App の private key には期限が無い**。repo secret に置いた鍵は、漏れてから App に登録したままにしている限り、いつまでもインストールトークンを発行できる。鍵を **AWS KMS に取り出せない形で入れ**、JWT の署名だけを KMS に任せることにして、GitHub 側から鍵を消した。workflow が持つのは「署名できること」で、それは IAM で剥がせる。
+
+差し替え先は [`suzuki-shunsuke/create-github-app-token-aws-kms`](https://github.com/suzuki-shunsuke/create-github-app-token-aws-kms)。`actions/create-github-app-token` と入出力が揃っていて、`private-key` が `kms-key-id` に替わる。
+
+| App | 使う側 | 鍵の置き場 |
+| --- | --- | --- |
+| `terraform-ci`（App ID 4105862） | github-management の CI | KMS `alias/github-app-terraform-ci` |
+| `renovate`（Client ID `Iv23liaejPgQYkemEFr5`） | renovate-runner | KMS `alias/github-app-renovate` |
+| `pr-approver`（Client ID `Iv23liuQe4mdgQyAnzLM`） | renovate-runner | KMS `alias/github-app-pr-approver` |
+| `image-updater`（App ID 4703313） | クラスタの Argo CD Image Updater | Parameter Store `/image-updater/app-private-key` |
+
+**`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、**Image Updater Credential** が OIDC で読んでクラスタの Secret にする。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
+
+費用は **key 1本 $1/月**（今は3本で $3/月）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
+
+**鍵は Terraform を通らない**。`key_material_base64` を渡すと private key が HCP の state に載るので、Terraform が作るのは **material の入っていない空の key**（origin EXTERNAL、`PendingImport`）と、それで署名できる role だけ。material は CLI で入れる。
+
+**role は App ごとに分ける**。1つの role に全部の key への `kms:Sign` を持たせると、renovate-runner の run が「全 repo を管理する App」として署名できてしまう。trust policy が列挙するのはその App を使う repo だけで、対応は `terraform/variables.tf` の `github_apps` が持つ。
+
+**CI は key を作れるが使えない**。`github-actions-terraform` が持つのは KMS の管理操作だけで、`kms:Sign` も `kms:ImportKeyMaterial` も `kms:PutKeyPolicy` も無い——この repo の run が App として署名することも、key の中身を入れ替えることも、key policy で自分に権限を足すこともできない。
+
+### App を1つ入れる
+
+**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。
+
+**2. merge する。** **apply はローカルでやらない**。CI の role が持つ `iam:*` は ARN の列挙だが、そこに載る役割名は `github_apps` から**文字列で**組んである——resource の ARN を読むと policy が role の後ろに並び、「作る権限を与える更新」が「作る」より後に来てしまう。`depends_on` で policy の更新を先に置いてあるので、key も role も同じ apply の中で作れる。
+
+IAM の反映は結果整合なので、広がった直後の `CreateKey` が稀に `AccessDenied` を返すことがある。その時は workflow を再実行する（apply は冪等）。
+
+**3. 鍵を入れる。** ここだけは手元でやる——PEM が手元にしか無いため。 **KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。KMS は wrap した material しか受け取らないので、その手順が `app:key-import` で、**OpenSSL 3 が要る**——macOS の `openssl` は LibreSSL で `-id-aes256-wrap-pad` を持たない。
+
+```sh
+brew install openssl@3
+OPENSSL="$(brew --prefix openssl@3)/bin/openssl" \
+  mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
+```
+
+`KeyState: Enabled` が返れば入っている。**ここで手元の PEM を消す**——これ以降どこからも読み出せない値で、残しておくと KMS に入れた意味が減る。
+
+**手元に PEM が無ければ App の設定で作り直す。** repo secret に入れた鍵は読み出せないので、既に secret に置いてある App を移すときは必ずこうなる。App は private key を複数持てるので、**新しい鍵を生成 → KMS に入れる → workflow を差し替える → 古い鍵を App から revoke** の順なら、途中で動かない時間ができない。同じことが `image-updater` の鍵（`mise run image-updater:key`）にも当てはまる。
+
+**4. 使う側の repo の workflow を差し替える。**
+
+```yaml
+    permissions:
+      id-token: write # 既存の permissions に足す
+
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: suzuki-shunsuke/create-github-app-token-aws-kms@b4a29a5f1cd6ea2b633d6ee6d9806dbce26493cf # v0.0.3
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          kms-key-id: arn:aws:kms:ap-northeast-1:509266991346:alias/github-app-renovate
+          role-to-assume: arn:aws:iam::509266991346:role/github-actions-github-app-renovate
+          permission-contents: write
+```
+
+`permission-*` は**最低1つ必須**で、ここが公式の action と違う。`role-to-assume` を渡すと AWS の認証は action の中で完結し、後続の step には渡らない。`kms-key-id` が ARN なら region を持っているので `aws-region` は要らない。
+
+**5. その repo の secret を消す。** `gh secret delete RENOVATE_APP_PRIVATE_KEY`。ここで初めて「鍵が GitHub に無い」状態になる。
+
+### 鍵を入れ替える
+
+App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わるので、`-target` はこの3つ。repo 側が名指ししているのは alias なので、workflow は触らなくていい。
+
+```sh
+mise exec -- terraform -chdir=terraform apply \
+  -replace='aws_kms_external_key.github_app["renovate"]' \
+  -target='aws_kms_external_key.github_app["renovate"]' \
+  -target=aws_kms_alias.github_app \
+  -target=aws_iam_role_policy.github_app
+OPENSSL="$(brew --prefix openssl@3)/bin/openssl" \
+  mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
+```
+
+古い key は 30 日の待機を経て消える（その間は `kms:CancelKeyDeletion` で戻せる）。**key を消すことは鍵を失うこと**で、手元の PEM はもう無い——戻す道は App 側で鍵を作り直して入れ直すことだけ。`prevent_destroy` を付けていないのはクラスタと同じ理由で、作り直せるものを消せなくしないため。
+
+### 監査
+
+`kms:Sign` は CloudTrail に残り、**セッション名が `gha-<run id>-<run attempt>`** なので、どの run がトークンを取ったかまで辿れる。GitHub の監査ログはトークンの行いを App にしか紐付けないので、run を名指しできるのは AWS 側だけ。
+
+### 失敗の見え方
+
+| 症状 | 原因 |
+| --- | --- |
+| action が `KMSInvalidStateException` | key が `PendingImport` のまま（material を入れていない） |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | その repo が `github_apps` の `repositories` に無い（実際に届いた `sub` は CloudTrail で見る） |
+| action が入力エラーで落ちる | `permission-*` が1つも無い |
+
 ## Toolchain
 
 Terraform / doctl / kubectl / AWS CLI を [mise](https://mise.jdx.dev/) で固定（`mise.toml`）。
@@ -313,9 +405,8 @@ mise exec -- terraform plan
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
 | `ACCESS_OWNER_EMAIL` | Access が Backstage に通すメールアドレス（`TF_VAR_access_owner_email`） |
-| `IMAGE_UPDATER_APP_PRIVATE_KEY` | Image Updater の GitHub App（id 2つは variable） |
 
-**Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。
+**Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。private key は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-image-updater` role）ので、この repo が持つ App の秘密はもう無い。
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
@@ -353,7 +444,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 ## 費用
 
-課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。
+クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は3本で $3/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。
 
 node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
 
@@ -365,4 +456,4 @@ node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打�
 
 停止が 5 時間しか取れないのは、夜の作業が 01:00 過ぎまで伸びる一方で朝の締切が 10 時だから。そこに最大 3 時間の schedule 遅延が乗るので、**節約は遅延次第で $3.65 から $0.43 まで振れる**。窓を広げるには GitHub の schedule 以外の発火元（Cloudflare Workers の Cron Trigger から `workflow_dispatch` を叩くなど）が要る。
 
-outbound 転送は月 4,000 GiB まで無料で、超過分が $0.01/GiB——従量なのはここだけ。使わない期間は `terraform destroy` で完全に止められる——`destroy_all_associated_resources = true` なので、クラスタが作った LoadBalancer / volume も一緒に消える。
+outbound 転送は月 4,000 GiB まで無料で、超過分が $0.01/GiB——従量なのはここだけ。使わない期間は `terraform destroy` で完全に止められる——`destroy_all_associated_resources = true` なので、クラスタが作った LoadBalancer / volume も一緒に消える。**ただし root module は1つなので、素の destroy は KMS の key まで消しにいく**（= App の鍵を失う）。止めたいのはノード代なので、`-target=digitalocean_kubernetes_cluster.this` で絞るか、夜間停止をそのまま使う。

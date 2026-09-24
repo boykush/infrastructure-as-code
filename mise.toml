@@ -6,8 +6,8 @@ doctl = "1.166.0"
 # Pinned to the cluster's minor track: kubectl supports only ±1 minor of skew,
 # and a machine-wide 1.30 client is too old to talk to DOKS 1.36.
 kubectl = "1.36.3"
-# Only used by hand: writing the Claude Code token and the first local apply.
-# CI reads the parameter with the copy already on the runner.
+# Used by hand for the parameters and the key imports, and in CI by the Image
+# Updater Credential workflow — which reaches it as a shim, like every tool here.
 awscli = "2.37.0"
 
 # `aws login` writes a profile, so it needs somewhere to write. Pointing it at
@@ -58,4 +58,79 @@ aws ssm put-parameter \
   --overwrite \
   --value "file://$token_file" > /dev/null
 echo "wrote /claude-code/oauth-token"
+"""
+
+# Same shape as claude:token, for the one app key KMS cannot hold. Paste the PEM
+# GitHub generated, then Ctrl-D; `gh workflow run image-updater-credential.yml`
+# is what carries it from there into the cluster.
+[tasks."image-updater:key"]
+description = "Write the Image Updater app's private key to Parameter Store (paste the PEM on stdin)"
+run = """
+set -euo pipefail
+umask 077
+key_file="$(mktemp)"
+trap 'rm -f "$key_file"' EXIT
+cat > "$key_file"
+aws ssm put-parameter \
+  --region ap-northeast-1 \
+  --name /image-updater/app-private-key \
+  --type SecureString \
+  --overwrite \
+  --value "file://$key_file" > /dev/null
+echo "wrote /image-updater/app-private-key"
+"""
+
+# KMS accepts key material only wrapped, so this is easy to get wrong and is run
+# once per app — a key takes one import and holds it forever. Afterwards the PEM
+# has no reason to exist anywhere, so delete the download.
+[tasks."app:key-import"]
+description = "Import a GitHub App private key into its KMS key (usage: app:key-import <app> <pem>)"
+usage = '''
+arg "<app>" help="App name as written in var.github_apps, which names the alias"
+arg "<pem>" help="Path to the private key GitHub generated"
+'''
+run = """
+set -euo pipefail
+umask 077
+
+# macOS ships LibreSSL as openssl, and it has no -id-aes256-wrap-pad.
+openssl="${OPENSSL:-openssl}"
+case "$("$openssl" version)" in
+  "OpenSSL 3"*) ;;
+  *) echo 'needs OpenSSL 3: brew install openssl@3, then OPENSSL="$(brew --prefix openssl@3)/bin/openssl"' >&2; exit 1 ;;
+esac
+
+# get-parameters-for-import rejects an alias, so resolve it to the key ARN.
+key="$(aws kms describe-key --key-id "alias/github-app-${usage_app}" --query KeyMetadata.Arn --output text)"
+
+dir="$(mktemp -d)"
+trap 'rm -rf "$dir"' EXIT
+
+"$openssl" pkcs8 -topk8 -inform PEM -outform DER -in "${usage_pem}" -out "$dir/key.der" -nocrypt
+
+aws kms get-parameters-for-import \
+  --key-id "$key" \
+  --wrapping-algorithm RSA_AES_KEY_WRAP_SHA_256 \
+  --wrapping-key-spec RSA_4096 \
+  --query "[PublicKey,ImportToken]" --output text > "$dir/params.txt"
+cut -f1 "$dir/params.txt" | "$openssl" base64 -d -A -out "$dir/wrapping-key.der"
+cut -f2 "$dir/params.txt" | "$openssl" base64 -d -A -out "$dir/import-token.bin"
+
+# The private key is too long for RSA-OAEP alone: AES wraps it, RSA wraps the
+# AES key, and KMS unwraps the two halves in that order.
+"$openssl" rand -out "$dir/aes.bin" 32
+"$openssl" pkeyutl -encrypt -pubin -keyform DER -inkey "$dir/wrapping-key.der" \
+  -in "$dir/aes.bin" -out "$dir/aes.wrapped" \
+  -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256
+"$openssl" enc -id-aes256-wrap-pad -K "$(xxd -p -c 256 "$dir/aes.bin")" -iv A65959A6 \
+  -in "$dir/key.der" -out "$dir/key.wrapped"
+cat "$dir/aes.wrapped" "$dir/key.wrapped" > "$dir/material.bin"
+
+aws kms import-key-material \
+  --key-id "$key" \
+  --import-token "fileb://$dir/import-token.bin" \
+  --encrypted-key-material "fileb://$dir/material.bin" \
+  --expiration-model KEY_MATERIAL_DOES_NOT_EXPIRE > /dev/null
+
+aws kms describe-key --key-id "$key" --query "KeyMetadata.{KeyState:KeyState,Origin:Origin}"
 """
