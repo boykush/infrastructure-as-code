@@ -181,6 +181,15 @@ variable "github_apps" {
         "zenn",
       ]
     },
+    # Writes to a repository its workflow is not running in — pushing a branch
+    # and opening a pull request that, unlike one from GITHUB_TOKEN, starts the
+    # checks a ruleset requires. Its permissions stay at contents and
+    # pull-requests: a shared write credential that accretes them is a master
+    # key. The list is who may sign; where a write lands is where it is installed.
+    {
+      name         = "repo-writer"
+      repositories = ["livt"]
+    },
   ]
 
   validation {
