@@ -80,57 +80,62 @@ aws ssm put-parameter \
 echo "wrote /image-updater/app-private-key"
 """
 
-# KMS accepts key material only wrapped, so this is easy to get wrong and is run
-# once per app — a key takes one import and holds it forever. Afterwards the PEM
-# has no reason to exist anywhere, so delete the download.
+# KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で
+# 1217 バイト）が包めないので AES-KWP が要る。macOS の LibreSSL はそれを持たないので node の
+# crypto を借りる。[tools] ではなく task に置いてあるのは、CI が走らせる mise install が
+# task の tool を入れないため——この repo の workflow に node は増えない。
 [tasks."app:key-import"]
-description = "Import a GitHub App private key into its KMS key (usage: app:key-import <app> <pem>)"
+description = "Import a GitHub App private key into its KMS key (one import per key, forever)"
+tools = { node = "24.21.0" }
 usage = '''
 arg "<app>" help="App name as written in var.github_apps, which names the alias"
 arg "<pem>" help="Path to the private key GitHub generated"
 '''
-run = """
+run = '''
 set -euo pipefail
-umask 077
+node - "${usage_app}" "${usage_pem}" <<'JS'
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
 
-# macOS ships LibreSSL as openssl, and it has no -id-aes256-wrap-pad.
-openssl="${OPENSSL:-openssl}"
-case "$("$openssl" version)" in
-  "OpenSSL 3"*) ;;
-  *) echo 'needs OpenSSL 3: brew install openssl@3, then OPENSSL="$(brew --prefix openssl@3)/bin/openssl"' >&2; exit 1 ;;
-esac
+const [app, pem] = process.argv.slice(2);
+const aws = (...args) =>
+  execFileSync("aws", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
 
-# get-parameters-for-import rejects an alias, so resolve it to the key ARN.
-key="$(aws kms describe-key --key-id "alias/github-app-${usage_app}" --query KeyMetadata.Arn --output text)"
+try {
+  // get-parameters-for-import rejects an alias, so resolve it to the key ARN.
+  const keyArn = aws("kms", "describe-key", "--key-id", "alias/github-app-" + app,
+    "--query", "KeyMetadata.Arn", "--output", "text");
 
-dir="$(mktemp -d)"
-trap 'rm -rf "$dir"' EXIT
+  const params = JSON.parse(aws("kms", "get-parameters-for-import", "--key-id", keyArn,
+    "--wrapping-algorithm", "RSA_AES_KEY_WRAP_SHA_256", "--wrapping-key-spec", "RSA_4096",
+    "--output", "json"));
 
-"$openssl" pkcs8 -topk8 -inform PEM -outform DER -in "${usage_pem}" -out "$dir/key.der" -nocrypt
+  // The key is too long for RSA-OAEP alone: AES wraps it, RSA wraps the AES
+  // key, and KMS unwraps the two halves in that order.
+  const material = crypto.createPrivateKey(fs.readFileSync(pem)).export({ type: "pkcs8", format: "der" });
+  const aesKey = crypto.randomBytes(32);
+  const wrappedAes = crypto.publicEncrypt({
+    key: crypto.createPublicKey({ key: Buffer.from(params.PublicKey, "base64"), format: "der", type: "spki" }),
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: "sha256",
+  }, aesKey);
+  const kwp = crypto.createCipheriv("id-aes256-wrap-pad", aesKey, Buffer.from("A65959A6", "hex"));
+  const wrapped = Buffer.concat([wrappedAes, kwp.update(material), kwp.final()]);
 
-aws kms get-parameters-for-import \
-  --key-id "$key" \
-  --wrapping-algorithm RSA_AES_KEY_WRAP_SHA_256 \
-  --wrapping-key-spec RSA_4096 \
-  --query "[PublicKey,ImportToken]" --output text > "$dir/params.txt"
-cut -f1 "$dir/params.txt" | "$openssl" base64 -d -A -out "$dir/wrapping-key.der"
-cut -f2 "$dir/params.txt" | "$openssl" base64 -d -A -out "$dir/import-token.bin"
+  // Both blobs go on the command line as base64, which the v2 CLI takes as-is.
+  // Neither is a secret: only KMS can unwrap the material, and the token is
+  // single-use for this key.
+  aws("kms", "import-key-material", "--key-id", keyArn,
+    "--import-token", params.ImportToken,
+    "--encrypted-key-material", wrapped.toString("base64"),
+    "--expiration-model", "KEY_MATERIAL_DOES_NOT_EXPIRE");
 
-# The private key is too long for RSA-OAEP alone: AES wraps it, RSA wraps the
-# AES key, and KMS unwraps the two halves in that order.
-"$openssl" rand -out "$dir/aes.bin" 32
-"$openssl" pkeyutl -encrypt -pubin -keyform DER -inkey "$dir/wrapping-key.der" \
-  -in "$dir/aes.bin" -out "$dir/aes.wrapped" \
-  -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256
-"$openssl" enc -id-aes256-wrap-pad -K "$(xxd -p -c 256 "$dir/aes.bin")" -iv A65959A6 \
-  -in "$dir/key.der" -out "$dir/key.wrapped"
-cat "$dir/aes.wrapped" "$dir/key.wrapped" > "$dir/material.bin"
-
-aws kms import-key-material \
-  --key-id "$key" \
-  --import-token "fileb://$dir/import-token.bin" \
-  --encrypted-key-material "fileb://$dir/material.bin" \
-  --expiration-model KEY_MATERIAL_DOES_NOT_EXPIRE > /dev/null
-
-aws kms describe-key --key-id "$key" --query "KeyMetadata.{KeyState:KeyState,Origin:Origin}"
-"""
+  console.log(aws("kms", "describe-key", "--key-id", keyArn,
+    "--query", "KeyMetadata.{KeyState:KeyState,Origin:Origin}"));
+} catch (e) {
+  // The AWS CLI already printed why; a stack trace on top of it helps no one.
+  process.exit(typeof e.status === "number" ? e.status : 1);
+}
+JS
+'''

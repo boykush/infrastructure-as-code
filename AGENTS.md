@@ -11,7 +11,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 ## Toolchain
 
-- Terraform / doctl / kubectl / AWS CLI は mise で固定（`mise.toml`）。セットアップは `mise install`、version 変更は `mise.toml` の編集だけ。AWS CLI は手元と CI の両方で使う——他の repo から呼ばれる composite action と、Parameter Store から App の鍵を読む Image Updater Credential。
+- Terraform / doctl / kubectl / AWS CLI は mise で固定（`mise.toml`）。セットアップは `mise install`、version 変更は `mise.toml` の編集だけ。AWS CLI は手元と CI の両方で使う——他の repo から呼ばれる composite action と、Parameter Store から App の鍵を読む Image Updater Credential。**node は `[tools]` ではなく `app:key-import` の task tool**——KMS が要求する AES-KWP を持つのが手元では node の `crypto` だけで、task の tool は `mise install` が入れないので CI には降りない。
 - `mise.lock` は一旦使わない。グローバル（`~/.config/mise/config.toml`）が `lockfile = true` なので、`mise.toml` で**明示的に `lockfile = false`** を置いて上書きしている——ファイルを消すだけでは次の mise コマンドで再生成される。checksum まで固定するなら `true` に戻し、`mise lock -p linux-x64,linux-arm64,macos-arm64,macos-x64` で全 platform 分を生成する。
 - provider は `.terraform.lock.hcl` で固定（**commit する**）。`versions.tf` の `~> 2.0` は緩いので、実際に使う version を決めているのは lock file。更新は **全 platform を明示**して行う:
   ```sh
