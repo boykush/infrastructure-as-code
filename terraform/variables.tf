@@ -160,26 +160,12 @@ variable "github_apps" {
       name         = "renovate"
       repositories = ["renovate-runner"]
     },
-    # Every public repo whose ruleset requires an approving review — the set
-    # github-management's approve_pr.tf fans its workflow out to. renovate-runner is
-    # here for two reasons: it is one of them, and it also approves Renovate's PRs
-    # from a workflow of its own.
+    # Only renovate-runner, whose sweep approves Renovate's automerge-labelled PRs
+    # across the owner's repositories. The owner's own PRs get their approval from
+    # ai-review as the Claude GitHub App, or go in through the owner's bypass.
     {
-      name = "pr-approver"
-      repositories = [
-        "adr",
-        "ai-plugins",
-        "boykush",
-        "dotfiles",
-        "famoney",
-        "infrastructure-as-code",
-        "livt",
-        "renovate-runner",
-        "scraps",
-        "wiki",
-        "workflows",
-        "zenn",
-      ]
+      name         = "pr-approver"
+      repositories = ["renovate-runner"]
     },
     # Writes to a repository its workflow is not running in — pushing a branch
     # and opening a pull request that, unlike one from GITHUB_TOKEN, starts the
