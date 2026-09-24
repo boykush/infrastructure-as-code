@@ -161,9 +161,25 @@ variable "github_apps" {
       name         = "renovate"
       repositories = ["renovate-runner"]
     },
+    # Every public repo whose ruleset requires an approving review — the set
+    # github-management's approve_pr.tf fans its workflow out to. renovate-runner is
+    # here for two reasons: it is one of them, and it also approves Renovate's PRs
+    # from a workflow of its own.
     {
-      name         = "pr-approver"
-      repositories = ["renovate-runner"]
+      name = "pr-approver"
+      repositories = [
+        "adr",
+        "ai-plugins",
+        "boykush",
+        "dotfiles",
+        "famoney",
+        "infrastructure-as-code",
+        "livt",
+        "renovate-runner",
+        "scraps",
+        "wiki",
+        "zenn",
+      ]
     },
   ]
 
