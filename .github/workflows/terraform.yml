@@ -34,6 +34,11 @@ jobs:
     name: changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # This job asks the API rather than the tree, so it never checks one out and
+    # the workflow's terraform/ default would point at nothing.
+    defaults:
+      run:
+        working-directory: .
     permissions:
       pull-requests: read # list the files this PR touches
     outputs:
