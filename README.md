@@ -212,7 +212,7 @@ mise exec -- terraform -chdir=terraform apply \
 
 `Plan: 5 to add, 0 to change, 0 to destroy.` を確かめてから `yes`。`-target` には「通常運用向けではない」という警告が出るが、bootstrap はまさにその例外で、**残りは merge 後に CI が full apply で揃える**。
 
-**4. トークンを入れる。** `claude setup-token` の出力を貼って Ctrl-D。確認は値を出さずに version だけ見る。
+**4. トークンを入れる。** `claude setup-token` の出力を貼って Ctrl-D。確認は値を出さずに version だけ見る。**端末幅で折り返された値をコピーすると改行が混ざる**ので、タスク側で空白を落として `sk-ant-oat` で始まることを検証している——改行が残ったまま保存されると、読み出し側で `::add-mask::` が行単位に効かず、**2行目が CI のログに出る**。
 
 ```sh
 mise run claude:token
