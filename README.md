@@ -301,13 +301,13 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 IAM の反映は結果整合なので、広がった直後の `CreateKey` が稀に `AccessDenied` を返すことがある。その時は workflow を再実行する（apply は冪等）。
 
-**3. 鍵を入れる。** ここだけは手元でやる——PEM が手元にしか無いため。 **KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。KMS は wrap した material しか受け取らないので、その手順が `app:key-import` で、**OpenSSL 3 が要る**——macOS の `openssl` は LibreSSL で `-id-aes256-wrap-pad` を持たない。
+**3. 鍵を入れる。** ここだけは手元でやる——PEM が手元にしか無いため。**KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。
 
 ```sh
-brew install openssl@3
-OPENSSL="$(brew --prefix openssl@3)/bin/openssl" \
-  mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
+mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
 ```
+
+KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で 1217 バイト）が包めないので AES-KWP が要る。macOS の `openssl` は LibreSSL でそれを持たないため、この task だけ node の `crypto` を借りている。**node は task の tool として宣言してある**ので、初回に mise が入れるだけで、`mise install` にも CI にも降りてこない。
 
 `KeyState: Enabled` が返れば入っている。**ここで手元の PEM を消す**——これ以降どこからも読み出せない値で、残しておくと KMS に入れた意味が減る。
 
@@ -344,8 +344,7 @@ mise exec -- terraform -chdir=terraform apply \
   -target='aws_kms_external_key.github_app["renovate"]' \
   -target=aws_kms_alias.github_app \
   -target=aws_iam_role_policy.github_app
-OPENSSL="$(brew --prefix openssl@3)/bin/openssl" \
-  mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
+mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
 ```
 
 古い key は 30 日の待機を経て消える（その間は `kms:CancelKeyDeletion` で戻せる）。**key を消すことは鍵を失うこと**で、手元の PEM はもう無い——戻す道は App 側で鍵を作り直して入れ直すことだけ。`prevent_destroy` を付けていないのはクラスタと同じ理由で、作り直せるものを消せなくしないため。
