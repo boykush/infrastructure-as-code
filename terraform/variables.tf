@@ -177,6 +177,7 @@ variable "github_apps" {
         "renovate-runner",
         "scraps",
         "wiki",
+        "workflows",
         "zenn",
       ]
     },
