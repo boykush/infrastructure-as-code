@@ -87,7 +87,7 @@ port-forward も従来どおり使える。tunnel を疑うときの切り分け
 mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 ```
 
-Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset（`boykush/github-management` が張る Require pull request / Required check: zizmor）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id を両 ruleset の bypass actor に足す。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
+Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset のうち push を止めるもの（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id をそれらすべての bypass actor に足す（github-management の ruleset module が付ける）。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
 
 credential をクラスタに入れるのは Actions の **Image Updater Credential**（`workflow_dispatch`）。手元に DO の PAT を持たなくてよく、鍵を替えたときもクラスタを作り直したときも同じ workflow を回すだけで戻る。
 
@@ -151,7 +151,7 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 | Parameter Store `/claude-code/oauth-token` | トークン本体（SecureString、既定の `aws/ssm` キー） |
 | IAM role `github-actions-claude-code` | 読む権限。信頼するのは `claude_code_repositories` に挙げた repo だけ |
 | IAM role `github-actions-terraform` | CI がこの設定を apply するための role |
-| `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
+| boykush/workflows の `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
 
 費用は実質 **$0**——standard parameter は保管も API 呼び出しも無料で、IAM と STS にも課金は無い。SecureString の復号で KMS の request が立つが、既定の `aws/ssm` キーに月額は無く、$0.03/10,000 なので月数百回なら $0.01 に届かない。
 
@@ -230,9 +230,9 @@ mise exec -- aws logout
 
 **3 が済むまで PR の `terraform plan` は落ちる**（role がまだ無いため）。merge を止めるのは zizmor だけなので、plan の赤は無視して進められる。merge 後の push で初めて CI が `github-actions-terraform` として apply するので、**権限の過不足が出るとしたらそこ**——`iam:*` を3つの ARN に絞ってあるので、resource 指定を受け付けない IAM アクションがあれば `AccessDenied` で分かる。
 
-経路全体が通ったことを確かめられるのは、wiki で `@claude` を1回動かしたときだけ。OIDC は手元から再現できない。
+経路全体が通ったことを確かめられるのは、トークンを読む workflow（今は livt の ai-review）を1回動かしたときだけ。OIDC は手元から再現できない。
 
-**role の ARN は repo に直接書いてある**（`.github/workflows/terraform.yml` と `.github/actions/claude-code-token/action.yml`）。account id が public repo に載るのは承知の上で——AWS 自身が account id を secret ではないとしており、ARN 単体では OIDC の `sub` が一致しない限り何もできない。variable に逃がすと呼び出し側の repo ごとに set して回ることになり、秘密を1箇所に寄せた意味が薄れる。
+**role の ARN は repo に直接書いてある**（この repo の `.github/workflows/terraform.yml` と、boykush/workflows の `.github/actions/claude-code-token/action.yml`）。account id が public repo に載るのは承知の上で——AWS 自身が account id を secret ではないとしており、ARN 単体では OIDC の `sub` が一致しない限り何もできない。variable に逃がすと呼び出し側の repo ごとに set して回ることになり、秘密を1箇所に寄せた意味が薄れる。
 
 ### ローテーション
 
@@ -250,7 +250,7 @@ mise exec -- aws logout
     steps:
       - name: Fetch the Claude Code token
         id: claude-token
-        uses: boykush/infrastructure-as-code/.github/actions/claude-code-token@<sha> # main
+        uses: boykush/workflows/.github/actions/claude-code-token@<sha>
 
       - name: Run Claude Code
         uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
@@ -258,7 +258,7 @@ mise exec -- aws logout
           claude_code_oauth_token: ${{ steps.claude-token.outputs.token }}
 ```
 
-composite action も他の action と同じく **SHA で固定する**（zizmor が未固定を落とす）。追従は Renovate に任せる。
+composite action も他の action と同じく **SHA で固定する**（zizmor が未固定を落とす）。追従は Renovate に任せる。PR の ai-review を入れるだけなら step は書かず、boykush/workflows の README にある呼び出し側を置く。
 
 **`sub` クレームの形式は repo の作成時期で違う**。[2026-07-15 以降に作られた repo](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/) は `repo:<owner>@<owner_id>/<repo>@<repo_id>:...` と ID 入りになり、それ以前の repo は opt-in するまで名前だけ。trust policy は**両方を列挙している**ので足す側は意識しなくていいが、片方しか無いと作成時期次第で `Not authorized to perform sts:AssumeRoleWithWebIdentity` になる——CI から見えるのはこのメッセージだけなので、実際に届いた `sub` は CloudTrail の `AssumeRoleWithWebIdentity` イベントで確かめる。
 

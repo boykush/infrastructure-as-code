@@ -7,7 +7,6 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - `terraform/` — クラスタ本体（VPC + DOKS cluster + node pool）。root module は1つだけで、環境の分岐も tfvars も無い。`variables.tf` の default がそのまま live の設定。
 - `argocd/` — Argo CD 本体 + Image Updater。kustomize の remote base を tag で固定している。
 - `applications/` — アプリごとに `<name>.yaml`（Argo CD の Application）と `<name>/`（その manifest）を並べる。イメージのビルドは各アプリの repo が行い、ここにはその成果物を指す manifest だけが載る。
-- `.github/actions/` — 他の repo から呼ばれる composite action。ここに置くものは**この repo の CI では動かない**ので、壊しても自分の PR は緑のまま通る。
 
 ## Toolchain
 
@@ -75,7 +74,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
   - ENTRYPOINT が `adi mcp --model decisions --http` なので、`args` に渡すのは listen アドレスだけ。model の置き場所は adr 側の都合なので Deployment からは触らない。
   - GHCR の package は public。
 - **update strategy が `digest` なのは tag が動かないから**。`newest-build` や `semver` は tag 名の変化を前提にしている。
-- **git write-back の credential は GitHub App**（`githubAppID` / `githubAppInstallationID` / `githubAppPrivateKey`）。Secret `argocd/image-updater-git-creds` は **Actions の Image Updater Credential（`workflow_dispatch`）が適用する**。git には入れない——private key は Parameter Store（`/image-updater/app-private-key`）に置き、workflow が OIDC で読む。2つの id は variable。**この App の鍵だけ KMS に入れられない**——Image Updater はクラスタの中で自分で JWT に署名するので、鍵そのものが要る。**PAT では main に push できない**——`boykush/github-management` が張る ruleset（Require pull request / Required check: zizmor）の bypass actor になれるのは App だけなので、専用 App を作って両 ruleset の bypass に足す。Argo CD の read 用 credential とは別物。
+- **git write-back の credential は GitHub App**（`githubAppID` / `githubAppInstallationID` / `githubAppPrivateKey`）。Secret `argocd/image-updater-git-creds` は **Actions の Image Updater Credential（`workflow_dispatch`）が適用する**。git には入れない——private key は Parameter Store（`/image-updater/app-private-key`）に置き、workflow が OIDC で読む。2つの id は variable。**この App の鍵だけ KMS に入れられない**——Image Updater はクラスタの中で自分で JWT に署名するので、鍵そのものが要る。**PAT では main に push できない**——`boykush/github-management` が張る ruleset のうち push を止めるもの（Require pull request と required check）の bypass actor になれるのは App だけなので、専用 App を作り、github-management がそれらすべての bypass に足している。Argo CD の read 用 credential とは別物。
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。
 - **scraps は Host ヘッダを検証する**。rmcp の DNS リバインディング対策で、既定の許可リストは `localhost` / `127.0.0.1` / `::1`。公開ホスト名を通すには Deployment の `--allowed-host` に渡す（scraps v1.2.0 以降。loopback は置き換えでなく追加なので port-forward も生きる）。**Cloudflare 側の HTTP Host Header 書き換えは使わない**——一時期の回避策で、`--allowed-host` が入った時点で不要。
 - **adi は loopback で受けた接続にしか Host 検証をかけない**。公式 Go SDK の既定と同じ判定で、tunnel からの接続は pod network 経由なので対象外。scraps の `--allowed-host` に当たる設定は無く、要らない。port-forward は pod の loopback に着くので、`localhost` / `127.0.0.1` で叩けば通る。
@@ -108,7 +107,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
 - **トークンに空白を混ぜない**。`mise run claude:token` は貼り付けから空白を落として `sk-ant-oat` 接頭辞を検証し、composite action は空白を含む値を読んだ時点で失敗する。改行が残ると `::add-mask::` が行単位に効かず、**2行目が public repo のログに出る**——一度踏んだ。
 - **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。
-- **`sub` クレームは repo の作成時期で形式が違う**。2026-07-15 以降に作られた repo は ID 入り（`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`）、それ以前は名前だけで opt-in 待ち。`local.claude_code_subjects` / `local.this_repository_subjects` / `local.github_app_subjects` が両形式を並べているのはこのため。**片方に削ってはいけない**——`infrastructure-as-code` は新形式、`wiki` と `scraps` は旧形式で、実際に混在している。
+- **`sub` クレームは repo の作成時期で形式が違う**。2026-07-15 以降に作られた repo は ID 入り（`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`）、それ以前は名前だけで opt-in 待ち。`local.claude_code_subjects` / `local.this_repository_subjects` / `local.github_app_subjects` が両形式を並べているのはこのため。**片方に削ってはいけない**——`infrastructure-as-code` は新形式、`livt` と `renovate-runner` は旧形式で、実際に混在している。
 - **`local.account_id` は使えない**。`cloudflare.tf` が同名の local を持っている（Cloudflare の account id）。AWS 側は `local.aws_account_id`。この repo 自身の `sub` は `local.this_repository_subjects`——terraform の role と Image Updater の role が共有する。
 - **GitHub App の private key も Terraform には通さない**。`key_material_base64` を渡すと HCP の state に載るので、Terraform が作るのは material の無い空の key（origin EXTERNAL、`PendingImport`）と role だけ。中身は `mise run app:key-import` が CLI で入れる。**material は key ごとに1度きり**なので、鍵を替えるなら `-replace` で key を作り直す（alias が向き先を吸収するので repo 側は無変更）。
 - **role は App ごとに分ける**。`kms:Sign` を1つの role にまとめると、renovate-runner の run が全 repo を管理する App として署名できてしまう。App と repo の対応は `var.github_apps` だけが持つ。
