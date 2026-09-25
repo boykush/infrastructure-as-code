@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "terraform": {
+    "description": "provider の制約（~> 2.0 など）は緩く、新しい版は制約を書き換えずに満たしてしまう。update-lockfile なら .terraform.lock.hcl の version だけを上げる PR が来る。既定の auto も terraform では update-lockfile に解決されるが、実装依存なので明示しておく（github-management と同じ）。",
+    "rangeStrategy": "update-lockfile"
+  },
+  "packageRules": [
+    {
+      "description": "ghcr.io/boykush の image は、Argo CD Image Updater が kustomization.yaml の digest を main の tag に追従させて書き戻す。Renovate も同じ行を上げると取り合いになるので、こちらは触らない。",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/boykush/**"],
+      "enabled": false
+    },
+    {
+      "description": "kubectl は cluster の minor に揃える（client と server のずれは ±1 minor まで）。minor は terraform/variables.tf の kubernetes_version_prefix を上げるときに一緒に上げ、Renovate には patch だけを任せる。",
+      "matchManagers": ["mise"],
+      "matchDepNames": ["kubectl"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    }
+  ]
+}
