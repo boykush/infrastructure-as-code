@@ -274,18 +274,21 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 **GitHub App の private key には期限が無い**。repo secret に置いた鍵は、漏れてから App に登録したままにしている限り、いつまでもインストールトークンを発行できる。鍵を **AWS KMS に取り出せない形で入れ**、JWT の署名だけを KMS に任せることにして、GitHub 側から鍵を消した。workflow が持つのは「署名できること」で、それは IAM で剥がせる。
 
-差し替え先は [`suzuki-shunsuke/create-github-app-token-aws-kms`](https://github.com/suzuki-shunsuke/create-github-app-token-aws-kms)。`actions/create-github-app-token` と入出力が揃っていて、`private-key` が `kms-key-id` に替わる。
+差し替え先は [`suzuki-shunsuke/create-github-app-token-aws-kms`](https://github.com/suzuki-shunsuke/create-github-app-token-aws-kms)。`actions/create-github-app-token` と入出力が揃っていて、`private-key` が `kms-key-id` に替わる。使う側が直接呼ぶのではなく、[boykush/workflows](https://github.com/boykush/workflows) の `github-app-token` action を通す——alias も role の ARN も App 名から決まるので、そこで組み立てて渡している。
 
 | App | 使う側 | 鍵の置き場 |
 | --- | --- | --- |
-| `terraform-ci`（App ID 4105862） | github-management の CI | KMS `alias/github-app-terraform-ci` |
-| `renovate`（Client ID `Iv23liaejPgQYkemEFr5`） | renovate-runner | KMS `alias/github-app-renovate` |
-| `pr-approver`（Client ID `Iv23liuQe4mdgQyAnzLM`） | renovate-runner | KMS `alias/github-app-pr-approver` |
-| `image-updater`（App ID 4703313） | クラスタの Argo CD Image Updater | Parameter Store `/image-updater/app-private-key` |
+| `terraform-ci` | github-management の CI | KMS `alias/github-app-terraform-ci` |
+| `renovate` | renovate-runner | KMS `alias/github-app-renovate` |
+| `pr-approver` | renovate-runner | KMS `alias/github-app-pr-approver` |
+| `repo-writer` | livt の automations | KMS `alias/github-app-repo-writer` |
+| `image-updater` | クラスタの Argo CD Image Updater | Parameter Store `/image-updater/app-private-key` |
+
+App の id（App ID / Client ID）はここに書かない。台帳は github-management の catalog（`resource:<app>-app` の annotation）で、run から引く写しを `github-app-token` が持つ。
 
 **`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、**Image Updater Credential** が OIDC で読んでクラスタの Secret にする。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
 
-費用は **key 1本 $1/月**（今は3本で $3/月）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
+費用は **key 1本 $1/月**（今は4本で $4/月）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
 
 **鍵は Terraform を通らない**。`key_material_base64` を渡すと private key が HCP の state に載るので、Terraform が作るのは **material の入っていない空の key**（origin EXTERNAL、`PendingImport`）と、それで署名できる role だけ。material は CLI で入れる。
 
@@ -313,7 +316,9 @@ KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048b
 
 **手元に PEM が無ければ App の設定で作り直す。** repo secret に入れた鍵は読み出せないので、既に secret に置いてある App を移すときは必ずこうなる。App は private key を複数持てるので、**新しい鍵を生成 → KMS に入れる → workflow を差し替える → 古い鍵を App から revoke** の順なら、途中で動かない時間ができない。同じことが `image-updater` の鍵（`mise run image-updater:key`）にも当てはまる。
 
-**4. 使う側の repo の workflow を差し替える。**
+**4. App の id を台帳に足す。** github-management の `catalog/github-apps.yaml` に `<name>-app` の Resource を書き、annotation に App ID か Client ID を入れる。同じ値を boykush/workflows の `github-app-token` の表にも足す——workflow が渡すのは App 名だけなので、名前から id を引けないとトークンは出ない。
+
+**5. 使う側の repo の workflow を差し替える。**
 
 ```yaml
     permissions:
@@ -322,21 +327,19 @@ KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048b
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: suzuki-shunsuke/create-github-app-token-aws-kms@b4a29a5f1cd6ea2b633d6ee6d9806dbce26493cf # v0.0.3
+        uses: boykush/workflows/.github/actions/github-app-token@<SHA>
         with:
-          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
-          kms-key-id: arn:aws:kms:ap-northeast-1:509266991346:alias/github-app-renovate
-          role-to-assume: arn:aws:iam::509266991346:role/github-actions-github-app-renovate
+          app: renovate
           permission-contents: write
 ```
 
-`permission-*` は**最低1つ必須**で、ここが公式の action と違う。`role-to-assume` を渡すと AWS の認証は action の中で完結し、後続の step には渡らない。`kms-key-id` が ARN なら region を持っているので `aws-region` は要らない。
+`permission-*` は**最低1つ必須**で、ここが公式の action と違う。AWS の認証は action の中で完結し、後続の step には渡らない。alias も role の ARN も region も `app` から決まるので、使う側は ARN を持たない。
 
-**5. その repo の secret を消す。** `gh secret delete RENOVATE_APP_PRIVATE_KEY`。ここで初めて「鍵が GitHub に無い」状態になる。
+**6. その repo の secret を消す。** `gh secret delete RENOVATE_APP_PRIVATE_KEY`。ここで初めて「鍵が GitHub に無い」状態になる。
 
 ### 鍵を入れ替える
 
-App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わるので、`-target` はこの3つ。repo 側が名指ししているのは alias なので、workflow は触らなくていい。
+App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わるので、`-target` はこの3つ。alias を名指ししているのは `github-app-token` なので、使う側の workflow は触らなくていい。
 
 ```sh
 mise exec -- terraform -chdir=terraform apply \
@@ -443,7 +446,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 ## 費用
 
-クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は3本で $3/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。
+クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。
 
 node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
 
