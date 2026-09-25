@@ -124,6 +124,7 @@ variable "claude_code_repositories" {
   description = "Repositories whose workflows may read the Claude Code token. Adding one here is the whole of onboarding it; nothing is set on the repository itself."
 
   default = [
+    "livt",
     "wiki",
   ]
 
