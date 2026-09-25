@@ -125,7 +125,6 @@ variable "claude_code_repositories" {
 
   default = [
     "livt",
-    "wiki",
   ]
 
   validation {
