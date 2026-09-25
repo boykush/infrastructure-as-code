@@ -40,9 +40,10 @@ auth:
       # Safe only because Cloudflare Access lets no one but the owner reach the
       # pages that sign in.
       dangerouslyAllowOutsideDevelopment: true
-# The contract boykush/github-management's AGENTS.md states: the catalog image
-# puts its entry at /catalog/all.yaml, and User must be allowed on that location.
-# Rules are matched against the entry location, so this covers every file it pulls in.
+# The contract boykush/github-management states in the comments on catalog/all.yaml
+# and catalog/Dockerfile: the catalog image puts its entry at /catalog/all.yaml, and
+# User must be allowed on that location. Rules are matched against the entry
+# location, so this covers every file it pulls in.
 catalog:
   # Entities come only from github-management: registering a location is
   # refused, and a deleted entity is read back from its location within seconds.
