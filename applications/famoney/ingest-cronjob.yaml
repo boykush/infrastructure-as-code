@@ -1,42 +1,79 @@
-# Downloads Money Forward ME's CSV for a month and puts it, as is, in the raw
-# layer of the lake: s3://famoney/raw/moneyforward/month=YYYY-MM/transactions.csv.
-# A re-run overwrites the month, so running daily keeps the current month fresh.
-#
-# Two schedules: the current month every day, and the previous one for the
-# first days of a month, when late entries (card statements, bank syncs) still
-# land in it. Both run in the evening: the node is parked overnight and GitHub's
-# schedule has brought it back up to two hours past 06:37, while a park has
-# never started before 01:37. A pod left Pending for want of a node would run
-# into activeDeadlineSeconds and fail. The evening also sees the day's entries.
-#
-# Everything else about the pod is shared and lives in ingest-pod.yaml, which
-# the kustomization patches into both.
+# Downloads Money Forward ME's CSV for the previous month and puts it, as is, in
+# the raw layer of the lake: s3://famoney/raw/moneyforward/month=YYYY-MM/transactions.csv.
+# A re-run overwrites the month, so running it again by hand is always safe —
+# the README has how, including for a month other than the previous one.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: ingest-current
+  name: ingest
 spec:
-  schedule: "17 21 * * *"
+  # Once a month, a few days in, so that late entries of the month before (card
+  # statements, bank syncs) have landed. In the evening because the node is
+  # parked overnight and GitHub's schedule has brought it back up to two hours
+  # past 06:37; a pod left Pending for want of a node would run into
+  # activeDeadlineSeconds and fail.
+  schedule: "17 21 5 * *"
   timeZone: Asia/Tokyo
+  # A second run while one is still going would only race it to the same object.
+  concurrencyPolicy: Forbid
+  # A schedule missed while the node was away is not worth running hours late.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      # One retry, not the default six: an expired cookie fails the same way
+      # every time, and repeated logins look worse to Money Forward than a gap.
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
       template:
         spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: ingest
-              args: ["ingest", "--month", "current"]
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: ingest-previous
-spec:
-  schedule: "37 21 1-5 * *"
-  timeZone: Asia/Tokyo
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: ingest
+              # Built in boykush/famoney. The tag here is only what the
+              # kustomization's images block matches on; what runs is the
+              # digest pinned there.
+              image: ghcr.io/boykush/famoney:main
               args: ["ingest", "--month", "previous"]
+              env:
+                - name: FAMONEY_LAKE_ROOT
+                  value: s3://famoney
+                # R2 speaks S3 with region "auto", addressed path-style.
+                - name: FAMONEY_S3_REGION
+                  value: auto
+                - name: FAMONEY_S3_URL_STYLE
+                  value: path
+              # The endpoint carries the Cloudflare account id, which this public
+              # repository does not hold, so it travels in the Secret with the
+              # token: FAMONEY_S3_ENDPOINT, FAMONEY_S3_ACCESS_KEY_ID and
+              # FAMONEY_S3_SECRET_ACCESS_KEY in famoney-r2, MONEYFORWARD_COOKIE in
+              # famoney-moneyforward.
+              envFrom:
+                - secretRef:
+                    name: famoney-r2
+                - secretRef:
+                    name: famoney-moneyforward
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              # The CSV is staged in a temp file before DuckDB copies it to R2.
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

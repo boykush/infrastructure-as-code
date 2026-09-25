@@ -146,16 +146,13 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 [boykush/famoney](https://github.com/boykush/famoney) の家計データ。今動いているのは、マネーフォワード ME の CSV を取り込む ingest の CronJob だけ（`applications/famoney/`、namespace `famoney`）。変換の Job と MCP サーバーは後から同じ Application に足す。イメージは `ghcr.io/boykush/famoney` の1つで、サブコマンドで役割を切り替える。新しい digest は Image Updater が `applications/famoney/kustomization.yaml` に書き戻す。
 
-| CronJob | JST | 対象月 |
-| --- | --- | --- |
-| `ingest-current` | 毎日 21:17 | 当月 |
-| `ingest-previous` | 毎月 1〜5 日 21:37 | 前月（遅れて入る明細を拾う） |
-
-夜に回すのは夜間停止を避けるため。resume の schedule は実測で 2 時間近く遅れるので、朝だとノードが無いまま Pod が Pending になり、`activeDeadlineSeconds` で落ちる。
+CronJob `ingest` は**毎月 5 日 21:17 JST に前月分**を取り込み、R2 の `raw/moneyforward/month=YYYY-MM/transactions.csv` に置く。5 日にしてあるのは前月の遅れて入る明細（カードの確定、銀行の同期）を待つため。夜に回すのは夜間停止を避けるためで、resume の schedule は実測で 2 時間近く遅れるので、朝だとノードが無いまま Pod が Pending になり、`activeDeadlineSeconds` で落ちる。同じ月を流し直すと上書きするので、手で何度流してもよい。
 
 データの置き場は Cloudflare R2 のバケット `famoney`（`terraform/r2.tf`）。量が月に KB 単位で無料枠に収まり、作るのに要るのが既存の Cloudflare の API トークンだけなので、DO Spaces（月 $5 の定額、CI に全バケットを触れる S3 キーが要る）ではなくこちらにした。
 
-Job の認証情報は2つの Secret で、どちらも kubectl で作り、commit しない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置いている（public repo に account id を書かない方針のため）。
+#### Secret
+
+Job の認証情報は2つの Secret で、どちらも kubectl で作り、commit しない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置いている（public repo に account id を書かない方針のため）。Secret が無い間、Job の Pod は `CreateContainerConfigError` で止まる。
 
 1. **R2 の API トークン**: ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `famoney` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
 
@@ -166,7 +163,7 @@ Job の認証情報は2つの Secret で、どちらも kubectl で作り、comm
      --from-literal=FAMONEY_S3_SECRET_ACCESS_KEY='<secret access key>'
    ```
 
-2. **マネーフォワード ME の Cookie**: ログイン済みのブラウザで、`moneyforward.com` へのリクエストの `Cookie` ヘッダを写す。セッションが切れると Job が `moneyforward session expired` で落ちるので、そのたびに作り直す。
+2. **マネーフォワード ME の Cookie**: ログイン済みのブラウザで、`moneyforward.com` へのリクエストの `Cookie` ヘッダを写す。セッションが切れると Job が `moneyforward session expired` で落ちるので、流す前に作り直す。
 
    ```sh
    mise exec -- kubectl -n famoney create secret generic famoney-moneyforward \
@@ -174,11 +171,23 @@ Job の認証情報は2つの Secret で、どちらも kubectl で作り、comm
      --dry-run=client -o yaml | mise exec -- kubectl apply -f -
    ```
 
-Secret が無い間、Job の Pod は `CreateContainerConfigError` で止まる。手で1回流して確かめるには:
+#### 手で流す
+
+前月分なら CronJob からそのまま Job を作る。
 
 ```sh
-mise exec -- kubectl -n famoney create job --from=cronjob/ingest-current ingest-manual
+mise exec -- kubectl -n famoney create job --from=cronjob/ingest ingest-manual
 mise exec -- kubectl -n famoney logs -f job/ingest-manual
+```
+
+前月以外（初回に過去の月をまとめて取り込むときなど）は、引数の `previous` を月に置き換えて作る。Job 名は月ごとに変える。
+
+```sh
+month=2026-08
+mise exec -- kubectl -n famoney create job --from=cronjob/ingest "ingest-${month}" --dry-run=client -o yaml \
+  | sed "s/^\( *\)- previous\$/\1- ${month}/" \
+  | mise exec -- kubectl apply -f -
+mise exec -- kubectl -n famoney logs -f "job/ingest-${month}"
 ```
 
 ## Claude Code Actions のトークン（AWS）
