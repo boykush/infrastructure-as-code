@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ingest-cronjob.yaml
+  - imageupdater.yaml
+
+# The pod both ingest CronJobs share. Merged by container name, so each CronJob
+# keeps its own args.
+patches:
+  - path: ingest-pod.yaml
+    target:
+      kind: CronJob
+      name: ingest-.*
+
+# Image Updater rewrites this entry, pinning the digest behind the moving `main`
+# tag. One image serves every famoney workload; the subcommand picks the role.
+images:
+  - name: ghcr.io/boykush/famoney
+    newName: ghcr.io/boykush/famoney
+    newTag: main

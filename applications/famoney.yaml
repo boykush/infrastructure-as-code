@@ -1,0 +1,28 @@
+# boykush/famoney: the family's household data, downloaded from Money Forward ME
+# into an R2 bucket (terraform/r2.tf). For now only the ingest job runs; the
+# transform job and the MCP server that serves the result join this Application
+# later, in the same namespace.
+#
+# The jobs will not run until two Secrets exist in this namespace — the R2 token
+# and the Money Forward session cookie. Both are credentials, so they are
+# created with kubectl and never committed (see the README).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: famoney
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/famoney
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: famoney
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

@@ -66,7 +66,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）。
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、famoney の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -141,6 +141,45 @@ Access を抜けただけでは足りない。**Backstage は action を無記�
 - base URL が公開ホスト名なので、port-forward では画面が動かない（API の切り分けにだけ使える）。
 
 catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
+
+### famoney
+
+[boykush/famoney](https://github.com/boykush/famoney) の家計データ。今動いているのは、マネーフォワード ME の CSV を取り込む ingest の CronJob だけ（`applications/famoney/`、namespace `famoney`）。変換の Job と MCP サーバーは後から同じ Application に足す。イメージは `ghcr.io/boykush/famoney` の1つで、サブコマンドで役割を切り替える。新しい digest は Image Updater が `applications/famoney/kustomization.yaml` に書き戻す。
+
+| CronJob | JST | 対象月 |
+| --- | --- | --- |
+| `ingest-current` | 毎日 21:17 | 当月 |
+| `ingest-previous` | 毎月 1〜5 日 21:37 | 前月（遅れて入る明細を拾う） |
+
+夜に回すのは夜間停止を避けるため。resume の schedule は実測で 2 時間近く遅れるので、朝だとノードが無いまま Pod が Pending になり、`activeDeadlineSeconds` で落ちる。
+
+データの置き場は Cloudflare R2 のバケット `famoney`（`terraform/r2.tf`）。量が月に KB 単位で無料枠に収まり、作るのに要るのが既存の Cloudflare の API トークンだけなので、DO Spaces（月 $5 の定額、CI に全バケットを触れる S3 キーが要る）ではなくこちらにした。
+
+Job の認証情報は2つの Secret で、どちらも kubectl で作り、commit しない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置いている（public repo に account id を書かない方針のため）。
+
+1. **R2 の API トークン**: ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `famoney` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
+
+   ```sh
+   mise exec -- kubectl -n famoney create secret generic famoney-r2 \
+     --from-literal=FAMONEY_S3_ENDPOINT='<account_id>.r2.cloudflarestorage.com' \
+     --from-literal=FAMONEY_S3_ACCESS_KEY_ID='<access key id>' \
+     --from-literal=FAMONEY_S3_SECRET_ACCESS_KEY='<secret access key>'
+   ```
+
+2. **マネーフォワード ME の Cookie**: ログイン済みのブラウザで、`moneyforward.com` へのリクエストの `Cookie` ヘッダを写す。セッションが切れると Job が `moneyforward session expired` で落ちるので、そのたびに作り直す。
+
+   ```sh
+   mise exec -- kubectl -n famoney create secret generic famoney-moneyforward \
+     --from-literal=MONEYFORWARD_COOKIE='<cookie header>' \
+     --dry-run=client -o yaml | mise exec -- kubectl apply -f -
+   ```
+
+Secret が無い間、Job の Pod は `CreateContainerConfigError` で止まる。手で1回流して確かめるには:
+
+```sh
+mise exec -- kubectl -n famoney create job --from=cronjob/ingest-current ingest-manual
+mise exec -- kubectl -n famoney logs -f job/ingest-manual
+```
 
 ## Claude Code Actions のトークン（AWS）
 
@@ -440,7 +479,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 ## 費用
 
-クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。
+クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。famoney の R2 は無料枠（保存 10 GB/月、書き込み 100 万回・読み取り 1000 万回/月、転送は無料）に収まるので $0。
 
 node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
 

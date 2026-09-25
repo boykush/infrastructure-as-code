@@ -1,0 +1,42 @@
+# Downloads Money Forward ME's CSV for a month and puts it, as is, in the raw
+# layer of the lake: s3://famoney/raw/moneyforward/month=YYYY-MM/transactions.csv.
+# A re-run overwrites the month, so running daily keeps the current month fresh.
+#
+# Two schedules: the current month every day, and the previous one for the
+# first days of a month, when late entries (card statements, bank syncs) still
+# land in it. Both run in the evening: the node is parked overnight and GitHub's
+# schedule has brought it back up to two hours past 06:37, while a park has
+# never started before 01:37. A pod left Pending for want of a node would run
+# into activeDeadlineSeconds and fail. The evening also sees the day's entries.
+#
+# Everything else about the pod is shared and lives in ingest-pod.yaml, which
+# the kustomization patches into both.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest-current
+spec:
+  schedule: "17 21 * * *"
+  timeZone: Asia/Tokyo
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: ingest
+              args: ["ingest", "--month", "current"]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest-previous
+spec:
+  schedule: "37 21 1-5 * *"
+  timeZone: Asia/Tokyo
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: ingest
+              args: ["ingest", "--month", "previous"]
