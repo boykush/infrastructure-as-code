@@ -185,7 +185,7 @@ variable "github_apps" {
     # key. The list is who may sign; where a write lands is where it is installed.
     {
       name         = "repo-writer"
-      repositories = ["livt"]
+      repositories = ["livt", "scraps"]
     },
   ]
 
