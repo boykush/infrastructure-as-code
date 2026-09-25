@@ -276,19 +276,13 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 差し替え先は [`suzuki-shunsuke/create-github-app-token-aws-kms`](https://github.com/suzuki-shunsuke/create-github-app-token-aws-kms)。`actions/create-github-app-token` と入出力が揃っていて、`private-key` が `kms-key-id` に替わる。使う側が直接呼ぶのではなく、[boykush/workflows](https://github.com/boykush/workflows) の `github-app-token` action を通す——alias も role の ARN も App 名から決まるので、そこで組み立てて渡している。
 
-| App | 使う側 | 鍵の置き場 |
-| --- | --- | --- |
-| `terraform-ci` | github-management の CI | KMS `alias/github-app-terraform-ci` |
-| `renovate` | renovate-runner | KMS `alias/github-app-renovate` |
-| `pr-approver` | renovate-runner | KMS `alias/github-app-pr-approver` |
-| `repo-writer` | livt の automations | KMS `alias/github-app-repo-writer` |
-| `image-updater` | クラスタの Argo CD Image Updater | Parameter Store `/image-updater/app-private-key` |
+どの App があり、どの repo が署名してよいかは `terraform/variables.tf` の `github_apps` が持つ。KMS の alias（`alias/github-app-<name>`）も署名する role もその名前から決まるので、ここには写さない。`image-updater` だけはその list に無く、鍵の置き場も違う——理由は下記。
 
 App の id（App ID / Client ID）はここに書かない。台帳は github-management の catalog（`resource:<app>-app` の annotation）で、run から引く写しを `github-app-token` が持つ。
 
 **`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、**Image Updater Credential** が OIDC で読んでクラスタの Secret にする。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
 
-費用は **key 1本 $1/月**（今は4本で $4/月）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
+費用は **key 1本 $1/月**（本数は `github_apps` の数）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
 
 **鍵は Terraform を通らない**。`key_material_base64` を渡すと private key が HCP の state に載るので、Terraform が作るのは **material の入っていない空の key**（origin EXTERNAL、`PendingImport`）と、それで署名できる role だけ。material は CLI で入れる。
 
