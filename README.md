@@ -230,7 +230,7 @@ mise exec -- aws logout
 
 **3 が済むまで PR の `terraform plan` は落ちる**（role がまだ無いため）。merge を止めるのは zizmor だけなので、plan の赤は無視して進められる。merge 後の push で初めて CI が `github-actions-terraform` として apply するので、**権限の過不足が出るとしたらそこ**——`iam:*` を3つの ARN に絞ってあるので、resource 指定を受け付けない IAM アクションがあれば `AccessDenied` で分かる。
 
-経路全体が通ったことを確かめられるのは、トークンを読む workflow（今は livt の ai-review）を1回動かしたときだけ。OIDC は手元から再現できない。
+経路全体が通ったことを確かめられるのは、トークンを読む workflow（今は ai-review を入れた repo の PR の review）を1回動かしたときだけ。OIDC は手元から再現できない。
 
 **role の ARN は repo に直接書いてある**（この repo の `.github/workflows/terraform.yml` と、boykush/workflows の `.github/actions/claude-code-token/action.yml`）。account id が public repo に載るのは承知の上で——AWS 自身が account id を secret ではないとしており、ARN 単体では OIDC の `sub` が一致しない限り何もできない。variable に逃がすと呼び出し側の repo ごとに set して回ることになり、秘密を1箇所に寄せた意味が薄れる。
 
