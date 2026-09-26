@@ -64,7 +64,11 @@ resource "cloudflare_dns_record" "tunnel" {
   zone_id = local.zone_id
   name    = "${each.key}.${var.domain}"
   type    = "CNAME"
-  content = sensitive("${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com")
+  # Left unmarked, unlike zone_id and account_id: Cloudflare proxies
+  # <UUID>.cfargotunnel.com only for records in the tunnel's own account, and
+  # running the tunnel takes the token, not the UUID. Marking it would hide
+  # nothing anyway: every plan and apply prints it as the tunnel's id.
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com"
   proxied = true
   ttl     = 1
   comment = "Managed by Terraform (infrastructure-as-code)"
