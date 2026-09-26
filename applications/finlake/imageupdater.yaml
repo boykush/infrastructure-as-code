@@ -1,10 +1,10 @@
-# What Image Updater follows for famoney. A CR of its own, like backstage's, so
+# What Image Updater follows for finlake. A CR of its own, like backstage's, so
 # the app's directory holds everything about it; it sits in argocd because the
 # controller watches only there.
 apiVersion: argocd-image-updater.argoproj.io/v1alpha1
 kind: ImageUpdater
 metadata:
-  name: famoney
+  name: finlake
   namespace: argocd
 spec:
   writeBackConfig:
@@ -14,10 +14,10 @@ spec:
       # Resolves to the kustomization.yaml at the Application's path.
       writeBackTarget: kustomization
   applicationRefs:
-    - namePattern: famoney
+    - namePattern: finlake
       images:
-        - alias: famoney
-          imageName: ghcr.io/boykush/famoney:main
+        - alias: finlake
+          imageName: ghcr.io/boykush/finlake:main
           commonUpdateSettings:
             # The tag never moves off "main", so only the digest tells a rebuild apart.
             updateStrategy: digest
@@ -27,4 +27,4 @@ spec:
             forceUpdate: true
           manifestTargets:
             kustomize:
-              name: ghcr.io/boykush/famoney
+              name: ghcr.io/boykush/finlake

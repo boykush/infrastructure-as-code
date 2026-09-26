@@ -1,4 +1,4 @@
-# Object storage for boykush/famoney's data lake: the Money Forward ME CSVs its
+# Object storage for boykush/finlake's data lake: the Money Forward ME CSVs its
 # ingest job downloads, and later what its pipeline derives from them. R2 over
 # DO Spaces because the lake is kilobytes a month — inside R2's free tier, where
 # Spaces bills a flat $5 — and because creating it takes only the Cloudflare
@@ -8,9 +8,9 @@
 # The job's own credential (an R2 API token scoped to this bucket) is created in
 # the dashboard and handed to the cluster with kubectl, never through Terraform:
 # a token resource would put its secret into the HCP state.
-resource "cloudflare_r2_bucket" "famoney" {
+resource "cloudflare_r2_bucket" "finlake" {
   account_id = local.account_id
-  name       = "famoney"
+  name       = "finlake"
 
   # Next to the cluster in sgp1. Without a hint R2 places the bucket near the
   # caller, which for an apply from CI is a US runner.

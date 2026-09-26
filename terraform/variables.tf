@@ -128,7 +128,7 @@ variable "claude_code_repositories" {
     "ai-plugins",
     "boykush",
     "dotfiles",
-    "famoney",
+    "finlake",
     "infrastructure-as-code",
     "livt",
     "renovate-runner",

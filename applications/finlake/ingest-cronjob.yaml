@@ -1,5 +1,5 @@
 # Downloads Money Forward ME's CSV for the previous month and puts it, as is, in
-# the raw layer of the lake: s3://famoney/raw/moneyforward/month=YYYY-MM/transactions.csv.
+# the raw layer of the lake: s3://finlake/raw/moneyforward/month=YYYY-MM/transactions.csv.
 # A re-run overwrites the month, so running it again by hand is always safe —
 # the README has how, including for a month other than the previous one.
 apiVersion: batch/v1
@@ -35,29 +35,29 @@ spec:
               type: RuntimeDefault
           containers:
             - name: ingest
-              # Built in boykush/famoney. The tag here is only what the
+              # Built in boykush/finlake. The tag here is only what the
               # kustomization's images block matches on; what runs is the
               # digest pinned there.
-              image: ghcr.io/boykush/famoney:main
+              image: ghcr.io/boykush/finlake:main
               args: ["ingest", "--month", "previous"]
               env:
-                - name: FAMONEY_LAKE_ROOT
-                  value: s3://famoney
+                - name: FINLAKE_LAKE_ROOT
+                  value: s3://finlake
                 # R2 speaks S3 with region "auto", addressed path-style.
-                - name: FAMONEY_S3_REGION
+                - name: FINLAKE_S3_REGION
                   value: auto
-                - name: FAMONEY_S3_URL_STYLE
+                - name: FINLAKE_S3_URL_STYLE
                   value: path
               # The endpoint carries the Cloudflare account id, which this public
               # repository does not hold, so it travels in the Secret with the
-              # token: FAMONEY_S3_ENDPOINT, FAMONEY_S3_ACCESS_KEY_ID and
-              # FAMONEY_S3_SECRET_ACCESS_KEY in famoney-r2, MONEYFORWARD_COOKIE in
-              # famoney-moneyforward.
+              # token: FINLAKE_S3_ENDPOINT, FINLAKE_S3_ACCESS_KEY_ID and
+              # FINLAKE_S3_SECRET_ACCESS_KEY in finlake-r2, MONEYFORWARD_COOKIE in
+              # finlake-moneyforward.
               envFrom:
                 - secretRef:
-                    name: famoney-r2
+                    name: finlake-r2
                 - secretRef:
-                    name: famoney-moneyforward
+                    name: finlake-moneyforward
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

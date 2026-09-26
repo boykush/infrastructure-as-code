@@ -6,8 +6,8 @@ resources:
   - imageupdater.yaml
 
 # Image Updater rewrites this entry, pinning the digest behind the moving `main`
-# tag. One image serves every famoney workload; the subcommand picks the role.
+# tag. One image serves every finlake workload; the subcommand picks the role.
 images:
-  - name: ghcr.io/boykush/famoney
-    newName: ghcr.io/boykush/famoney
+  - name: ghcr.io/boykush/finlake
+    newName: ghcr.io/boykush/finlake
     newTag: main
