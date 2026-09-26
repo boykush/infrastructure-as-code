@@ -37,39 +37,32 @@ output "tunnel_token" {
   sensitive   = true
 }
 
-# The two values a workflow needs to name. Neither is a credential — an ARN is
-# useless without an OIDC token whose sub the trust policy accepts — but the
-# account id is in both, so they are read locally rather than echoed by tfcmt.
+# The two values a workflow needs to name. Neither is a credential: an ARN is
+# useless without an OIDC token whose sub the trust policy accepts.
 output "claude_code_role_arn" {
   description = "Role each repository's Claude workflow assumes to read the token."
   value       = aws_iam_role.claude_code.arn
-  sensitive   = true
 }
 
 output "terraform_role_arn" {
   description = "Role CI assumes to apply this configuration (written into .github/workflows/terraform.yml)."
   value       = aws_iam_role.terraform.arn
-  sensitive   = true
 }
 
 # What a repository writes into its workflow to sign as an app: the alias ARN as
 # kms-key-id (an ARN carries its region, so nothing else has to say where the
-# key is) and the role it assumes. Sensitive because the account id rides along
-# in both and tfcmt echoes plan output into pull request comments here.
+# key is) and the role it assumes.
 output "github_app_kms_key_aliases" {
   description = "Alias ARN of each GitHub App's KMS key, keyed by app name (the kms-key-id input)."
   value       = { for name, alias in aws_kms_alias.github_app : name => alias.arn }
-  sensitive   = true
 }
 
 output "github_app_role_arns" {
   description = "Role the repositories of each app assume to sign that app's JWT (the role-to-assume input)."
   value       = { for name, role in aws_iam_role.github_app : name => role.arn }
-  sensitive   = true
 }
 
 output "image_updater_role_arn" {
   description = "Role that reads the Image Updater app's private key (written into .github/workflows/image-updater-credential.yml)."
   value       = aws_iam_role.image_updater.arn
-  sensitive   = true
 }
