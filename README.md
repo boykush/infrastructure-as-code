@@ -340,7 +340,7 @@ App の id（App ID / Client ID）はここに書かない。台帳は github-ma
 
 ### App を1つ入れる
 
-**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。
+**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。main の run からだけ署名させる App は `main_only = true` にする（理由はそこのコメント）。
 
 **2. merge する。** **apply はローカルでやらない**。CI の role が持つ `iam:*` は ARN の列挙だが、そこに載る役割名は `github_apps` から**文字列で**組んである——resource の ARN を読むと policy が role の後ろに並び、「作る権限を与える更新」が「作る」より後に来てしまう。`depends_on` で policy の更新を先に置いてあるので、key も role も同じ apply の中で作れる。
 
@@ -403,7 +403,7 @@ mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
 | 症状 | 原因 |
 | --- | --- |
 | action が `KMSInvalidStateException` | key が `PendingImport` のまま（material を入れていない） |
-| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | その repo が `github_apps` の `repositories` に無い（実際に届いた `sub` は CloudTrail で見る） |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | その repo が `github_apps` の `repositories` に無い。`main_only` の App なら、main 以外の run から来た（実際に届いた `sub` は CloudTrail で見る） |
 | action が入力エラーで落ちる | `permission-*` が1つも無い |
 
 ## Toolchain
