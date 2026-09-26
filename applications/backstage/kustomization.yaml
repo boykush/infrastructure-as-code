@@ -18,4 +18,4 @@ images:
   - name: ghcr.io/boykush/github-management-catalog
     newName: ghcr.io/boykush/github-management-catalog
     newTag: main
-    digest: sha256:583b43535e71036c3e3ce1f973c5ff5e2425715eebe03f88bff89bae41d860f9
+    digest: sha256:09d38a28dcd614866e2853fbb04b35831d6f5c268bf882fa7dfe6b051a644bdb
