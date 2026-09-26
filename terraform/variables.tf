@@ -139,7 +139,6 @@ variable "claude_code_repositories" {
     "scraps",
     "wiki",
     "workflows",
-    "zenn",
   ]
 
   validation {
