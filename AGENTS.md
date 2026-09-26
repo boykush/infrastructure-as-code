@@ -41,6 +41,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Argo CD
 
 - **version の固定**: `argocd/kustomization.yaml` の remote base の `?ref=` が version。上げるときはそこを書き換える（Image Updater も同様に `argocd/image-updater/`）。
+- **anonymous を有効にしない**。UI は Backstage と同じ Access の内側にあるが、Access を唯一の鍵にはせず、Argo CD 自身のログインを残している（理由は `terraform/access.tf` の `argocd`）。
 
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
@@ -53,6 +54,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - **NodePort は採らなかった**。DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所にならない。
 - **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
+- **Access で守るホスト名は、その application を `terraform/cloudflare.tf` の `depends_on` にも載せる**。載せないと、初回の apply で route が Access より先に開きうる。
 
 ## Backstage（`applications/backstage/`）
 

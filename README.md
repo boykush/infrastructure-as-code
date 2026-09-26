@@ -34,15 +34,15 @@ mise exec -- kubectl apply -f applications/root.yaml
 
 ### remote MCP サーバー
 
-MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。今載っているのは、[boykush/wiki](https://github.com/boykush/wiki) を scraps の MCP サーバーにした `wiki` と、[boykush/adr](https://github.com/boykush/adr) を adi の MCP サーバーにした `adr` の2つ。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。何を追うかは `applications/remote-mcp-server/imageupdater.yaml`（`ImageUpdater` CR）で決める——v1.x は Application の annotation を読まない。
+MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置き、1つの Application（namespace `remote-mcp-server`）で同期する。どのサーバーがどの repo の何を配っているかは catalog が持つ（`type: mcp` の API と、それを provides する component）。イメージは各アプリ側の CI が GHCR へ push し、新しい digest は Image Updater が `applications/remote-mcp-server/kustomization.yaml` に書き戻す。何を追うかは `applications/remote-mcp-server/imageupdater.yaml`（`ImageUpdater` CR）で決める——v1.x は Application の annotation を読まない。
 
 公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
-この repo が持つのは公開エンドポイントまで——`https://wiki-mcp.boykush.com/mcp` と `https://adr-mcp.boykush.com/mcp`。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る（`plugins/wiki-remote-mcp` が MCP サーバー名 `scraps`、`plugins/adr-remote-mcp` が `adr`）。
+この repo が持つのは公開エンドポイントまで（URL と MCP サーバー名は catalog の各 API の `definition`）。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る。
 
-catalog を引く3つ目の MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
+catalog を引く MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
 
-エンドポイントのパスはどちらのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
+エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
 
 **これらの MCP は無認証で公開している**——wiki も adr も内容は元から公開で、scraps と adi の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
 
@@ -52,6 +52,7 @@ catalog を引く3つ目の MCP サーバーは Backstage が出すので、こ�
 2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
 3. `applications/remote-mcp-server/imageupdater.yaml` の `images` に `alias` / `imageName` / `updateStrategy` を1つ足す
 4. `terraform/variables.tf` の `tunnel_routes` に `subdomain` と `service` を1つ足す
+5. [boykush/github-management](https://github.com/boykush/github-management) の catalog に API を足し、出す repo の component から `providesApis` を張る（書き方は `catalog/apis.yaml` の先頭）
 
 #### tunnel の設定
 
@@ -66,7 +67,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -109,12 +110,17 @@ Secret ができるまで Image Updater は新しい digest を見つけても�
 
 ### UI
 
+`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）のワンタイム PIN を通った先で、Argo CD 自身のログインに admin で入る。
+
 ```sh
-mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:443
 mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-`https://localhost:8080` に admin で入る。証明書は自己署名なので警告が出る。
+port-forward でも入れる。tunnel を疑うときの切り分けに。TLS は Cloudflare で終わらせて argocd-server は平文で待っている（`argocd/kustomization.yaml` の `server.insecure`）ので、`http://localhost:8080` を開く。
+
+```sh
+mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:80
+```
 
 ### Backstage
 
@@ -448,7 +454,7 @@ mise exec -- terraform plan
 | `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
-| `ACCESS_OWNER_EMAIL` | Access が Backstage に通すメールアドレス（`TF_VAR_access_owner_email`） |
+| `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
 
 **Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。private key は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-image-updater` role）ので、この repo が持つ App の秘密はもう無い。
 
@@ -466,7 +472,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
-- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com`、`backstage.boykush.com`（catalog の MCP もここ）が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- **停止中は tunnel の先がすべて落ちる**（`terraform/variables.tf` の `tunnel_routes`。catalog の MCP も含む）。cloudflared ごと消えるので Cloudflare が 530 を返す。
 - resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr` / `backstage`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 実測値。10 時に使える状態にするための逆算がこれ。
 

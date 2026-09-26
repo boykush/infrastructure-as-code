@@ -69,6 +69,10 @@ variable "tunnel_routes" {
       subdomain = "backstage"
       service   = "http://backstage.backstage.svc.cluster.local:7007"
     },
+    {
+      subdomain = "argocd"
+      service   = "http://argocd-server.argocd.svc.cluster.local:80"
+    },
   ]
 
   validation {
@@ -80,7 +84,7 @@ variable "tunnel_routes" {
 variable "access_owner_email" {
   type        = string
   sensitive   = true
-  description = "The one address Cloudflare Access lets into Backstage. Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
+  description = "The one address Cloudflare Access lets through (access.tf). Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
 
   # An unset Actions secret expands to an empty string rather than failing, which
   # would plan cleanly into a policy that admits no one.

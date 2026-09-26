@@ -24,6 +24,21 @@ patches:
       spec:
         replicas: 0
 
+  # TLS ends at Cloudflare, so the tunnel reaches the server in plain HTTP like
+  # every other route; with TLS on, the server answers that with a redirect to
+  # https that loops back through the tunnel. Read at startup: a change here
+  # waits for argocd-server's next restart.
+  - target:
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cmd-params-cm
+      data:
+        server.insecure: "true"
+
   - target:
       kind: StatefulSet
       name: argocd-application-controller
