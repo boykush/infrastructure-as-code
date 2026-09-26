@@ -175,13 +175,14 @@ variable "github_apps" {
       name         = "renovate"
       repositories = ["renovate-runner"]
     },
-    # Only renovate-runner, whose sweep approves Renovate's automerge-labelled PRs
-    # across the owner's repositories, and only from its main branch: Renovate
-    # pushes branches there too. The owner's own PRs get their approval from
-    # ai-review as the Claude GitHub App, or go in through the owner's bypass.
+    # renovate-runner, whose sweep approves Renovate's automerge-labelled PRs
+    # across the owner's repositories, and livt, whose collect station approves
+    # the report PR it has just opened; each only from its main branch. The
+    # owner's own PRs get their approval from ai-review as the Claude GitHub
+    # App, or go in through the owner's bypass.
     {
       name         = "pr-approver"
-      repositories = ["renovate-runner"]
+      repositories = ["renovate-runner", "livt"]
       main_only    = true
     },
     # Writes to a repository its workflow is not running in — pushing a branch
