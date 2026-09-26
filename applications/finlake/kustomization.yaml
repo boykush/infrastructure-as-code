@@ -3,3 +3,8 @@ kind: Kustomization
 
 # Nothing of finlake runs in the cluster yet; see ../finlake.yaml.
 resources: []
+images:
+- name: ghcr.io/boykush/finlake
+  newName: ghcr.io/boykush/finlake
+  newTag: main
+  digest: sha256:54979d0777b5ee1edc87369a90b5dbfe0e0e35e30fa49d58debc2783b870a6d1
