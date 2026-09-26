@@ -1,10 +1,9 @@
-# id and endpoint are marked sensitive so neither terraform nor tfcmt — which
-# echoes plan/apply output into pull request comments — prints them in this
-# public repository. Read them locally with `terraform output -raw <name>`.
+# Not sensitive: the id and the endpoint address the cluster but authorize
+# nothing. The API server wants a DigitalOcean token, and limiting who can
+# reach it at all is control_plane_firewall's job, not the endpoint's secrecy.
 output "cluster_id" {
   description = "DOKS cluster UUID."
   value       = digitalocean_kubernetes_cluster.this.id
-  sensitive   = true
 }
 
 output "cluster_name" {
@@ -15,7 +14,6 @@ output "cluster_name" {
 output "cluster_endpoint" {
   description = "Kubernetes API server endpoint."
   value       = digitalocean_kubernetes_cluster.this.endpoint
-  sensitive   = true
 }
 
 output "cluster_version" {
