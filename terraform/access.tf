@@ -34,6 +34,23 @@ resource "cloudflare_zero_trust_access_application" "backstage" {
   }]
 }
 
+# Argo CD's UI, behind the same gate. Unlike Backstage it keeps a login of its
+# own behind this one: Argo CD applies whatever it is given to the cluster, so
+# one slip in this gate must not be enough to hand the cluster over.
+resource "cloudflare_zero_trust_access_application" "argocd" {
+  account_id                = local.account_id
+  name                      = "argocd"
+  type                      = "self_hosted"
+  domain                    = "argocd.${var.domain}"
+  destinations              = [{ type = "public", uri = "argocd.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.otp.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+}
+
 # The one path that answers without a login: the MCP server coding agents read
 # the catalog with. They have no identity for Access to check, and Backstage
 # cannot lift its auth policy for a single plugin, so the narrowing happens

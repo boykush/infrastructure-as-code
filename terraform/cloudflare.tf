@@ -47,9 +47,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "this" {
     )
   }
 
-  # Backstage's route must never be live without Access in front of it, so the
-  # routing table waits for the application that guards it (access.tf).
-  depends_on = [cloudflare_zero_trust_access_application.backstage]
+  # Guarded routes must never be live without Access in front of them, so the
+  # routing table waits for the applications that guard them (access.tf).
+  depends_on = [
+    cloudflare_zero_trust_access_application.backstage,
+    cloudflare_zero_trust_access_application.argocd,
+  ]
 }
 
 # Proxied so the hostname resolves to Cloudflare's edge, which is the only side

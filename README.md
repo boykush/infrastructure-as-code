@@ -66,7 +66,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Backstage を守る Access のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
+zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -109,12 +109,17 @@ Secret ができるまで Image Updater は新しい digest を見つけても�
 
 ### UI
 
+`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）のワンタイム PIN を通った先で、Argo CD 自身のログインに admin で入る。
+
 ```sh
-mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:443
 mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-`https://localhost:8080` に admin で入る。証明書は自己署名なので警告が出る。
+port-forward でも入れる。tunnel を疑うときの切り分けに。TLS は Cloudflare で終わらせて argocd-server は平文で待っている（`argocd/kustomization.yaml` の `server.insecure`）ので、`http://localhost:8080` を開く。
+
+```sh
+mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:80
+```
 
 ### Backstage
 
@@ -448,7 +453,7 @@ mise exec -- terraform plan
 | `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
-| `ACCESS_OWNER_EMAIL` | Access が Backstage に通すメールアドレス（`TF_VAR_access_owner_email`） |
+| `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
 
 **Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。private key は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-image-updater` role）ので、この repo が持つ App の秘密はもう無い。
 
@@ -466,7 +471,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
-- **停止中は `wiki-mcp.boykush.com` と `adr-mcp.boykush.com`、`backstage.boykush.com`（catalog の MCP もここ）が落ちる**。cloudflared ごと消えるので Cloudflare が 530 を返す。
+- **停止中は tunnel の先がすべて落ちる**（`terraform/variables.tf` の `tunnel_routes`。catalog の MCP も含む）。cloudflared ごと消えるので Cloudflare が 530 を返す。
 - resume の gate は `cloudflared` と MCP サーバー（`wiki` / `adr` / `backstage`）の rollout **だけ**。ノードの Ready は見ない——削除中のノードも Ready を返すので、park 直後の resume がそれを掴んで素通りする。
 - 実測値。10 時に使える状態にするための逆算がこれ。
 
