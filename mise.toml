@@ -2,7 +2,7 @@
 # Run `mise install` to set up locally (also resolves the shims).
 [tools]
 terraform = "1.15.8"
-doctl = "1.166.0"
+doctl = "1.173.0"
 # Pinned to the cluster's minor track: kubectl supports only ±1 minor of skew,
 # and a machine-wide 1.30 client is too old to talk to DOKS 1.36.
 kubectl = "1.36.3"
