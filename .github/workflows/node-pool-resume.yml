@@ -34,14 +34,11 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
 
-      # The cluster id is masked before doctl can print it: this repository is
-      # public, and the id is what addresses the cluster in the API.
       - name: Scale the node pool to 1
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
           doctl kubernetes cluster node-pool update boykush-cluster default --count 1
 
       # The rollout is the whole gate. Waiting on a Ready node first looked
@@ -53,16 +50,14 @@ jobs:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          echo "::add-mask::$(doctl kubernetes cluster get boykush-cluster --format ID --no-header)"
           doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 3600
-          echo "::add-mask::$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')"
           kubectl -n cloudflared rollout status deployment/cloudflared --timeout=1200s
           kubectl -n remote-mcp-server rollout status deployment/wiki --timeout=1200s
           kubectl -n remote-mcp-server rollout status deployment/adr --timeout=1200s
           kubectl -n backstage rollout status deployment/backstage --timeout=1200s
 
       # This runs unattended before dawn, so a failure has to explain itself in
-      # the log. Neither command prints the endpoint or any node address.
+      # the log. Neither command prints any node address.
       - name: Report cluster state on failure
         if: failure()
         run: |
