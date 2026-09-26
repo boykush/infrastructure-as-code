@@ -1,14 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-resources:
-  - ingest-cronjob.yaml
-  - imageupdater.yaml
-
-# Image Updater rewrites this entry, pinning the digest behind the moving `main`
-# tag. One image serves every finlake workload; the subcommand picks the role.
-images:
-  - name: ghcr.io/boykush/finlake
-    newName: ghcr.io/boykush/finlake
-    newTag: main
-    digest: sha256:54979d0777b5ee1edc87369a90b5dbfe0e0e35e30fa49d58debc2783b870a6d1
+# Nothing of finlake runs in the cluster yet; see ../finlake.yaml.
+resources: []

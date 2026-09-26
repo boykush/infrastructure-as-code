@@ -150,50 +150,21 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 ### finlake
 
-[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。今動いているのは、マネーフォワード ME の CSV を取り込む ingest の CronJob だけ（`applications/finlake/`、namespace `finlake`）。変換の Job と MCP サーバーは後から同じ Application に足す。イメージは `ghcr.io/boykush/finlake` の1つで、サブコマンドで役割を切り替える。新しい digest は Image Updater が `applications/finlake/kustomization.yaml` に書き戻す。
-
-CronJob `ingest` は**毎月 5 日 21:17 JST に前月分**を取り込み、R2 の `raw/moneyforward/month=YYYY-MM/transactions.csv` に置く。5 日にしてあるのは前月の遅れて入る明細（カードの確定、銀行の同期）を待つため。夜に回すのは夜間停止を避けるためで、resume の schedule は実測で 2 時間近く遅れるので、朝だとノードが無いまま Pod が Pending になり、`activeDeadlineSeconds` で落ちる。同じ月を流し直すと上書きするので、手で何度流してもよい。
+[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。取り込み（ingest → transform）は、マネーフォワード ME の Cookie があるオーナーの手元で流して R2 に直接書く（finlake の README の「取り込み」）。クラスタに載るのは結果を配る MCP サーバーだけで、まだ足していないので Application `finlake`（`applications/finlake/`、namespace `finlake`）は空。
 
 データの置き場は Cloudflare R2 のバケット `finlake`（`terraform/r2.tf`）。量が月に KB 単位で無料枠に収まり、作るのに要るのが既存の Cloudflare の API トークンだけなので、DO Spaces（月 $5 の定額、CI に全バケットを触れる S3 キーが要る）ではなくこちらにした。
 
 #### Secret
 
-Job の認証情報は2つの Secret で、どちらも kubectl で作り、commit しない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置いている（public repo に account id を書かない方針のため）。Secret が無い間、Job の Pod は `CreateContainerConfigError` で止まる。
+クラスタが R2 を読むためのトークンは kubectl で Secret にし、commit しない。書き込むのは手元の取り込みだけなので、クラスタには読み取りしか渡さない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置く（public repo に account id を書かない方針のため）。
 
-1. **R2 の API トークン**: ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
-
-   ```sh
-   mise exec -- kubectl -n finlake create secret generic finlake-r2 \
-     --from-literal=FINLAKE_S3_ENDPOINT='<account_id>.r2.cloudflarestorage.com' \
-     --from-literal=FINLAKE_S3_ACCESS_KEY_ID='<access key id>' \
-     --from-literal=FINLAKE_S3_SECRET_ACCESS_KEY='<secret access key>'
-   ```
-
-2. **マネーフォワード ME の Cookie**: ログイン済みのブラウザで、`moneyforward.com` へのリクエストの `Cookie` ヘッダを写す。セッションが切れると Job が `moneyforward session expired` で落ちるので、流す前に作り直す。
-
-   ```sh
-   mise exec -- kubectl -n finlake create secret generic finlake-moneyforward \
-     --from-literal=MONEYFORWARD_COOKIE='<cookie header>' \
-     --dry-run=client -o yaml | mise exec -- kubectl apply -f -
-   ```
-
-#### 手で流す
-
-前月分なら CronJob からそのまま Job を作る。
+ダッシュボードの R2 → Manage API tokens で、権限 Object Read、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
 
 ```sh
-mise exec -- kubectl -n finlake create job --from=cronjob/ingest ingest-manual
-mise exec -- kubectl -n finlake logs -f job/ingest-manual
-```
-
-前月以外（初回に過去の月をまとめて取り込むときなど）は、引数の `previous` を月に置き換えて作る。Job 名は月ごとに変える。
-
-```sh
-month=2026-08
-mise exec -- kubectl -n finlake create job --from=cronjob/ingest "ingest-${month}" --dry-run=client -o yaml \
-  | sed "s/^\( *\)- previous\$/\1- ${month}/" \
-  | mise exec -- kubectl apply -f -
-mise exec -- kubectl -n finlake logs -f "job/ingest-${month}"
+mise exec -- kubectl -n finlake create secret generic finlake-r2 \
+  --from-literal=FINLAKE_S3_ENDPOINT='<account_id>.r2.cloudflarestorage.com' \
+  --from-literal=FINLAKE_S3_ACCESS_KEY_ID='<access key id>' \
+  --from-literal=FINLAKE_S3_SECRET_ACCESS_KEY='<secret access key>'
 ```
 
 ## Claude Code Actions のトークン（AWS）
