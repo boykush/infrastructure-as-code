@@ -1,18 +1,16 @@
-# Zone and account IDs are read back from the domain name rather than written
-# down, so neither identifier lands in this public repository. Costs the API
-# token one extra permission (Zone: Zone Read), and every plan carries a
-# deprecation warning about an attribute of the result nothing here reads —
-# referencing the zone at all is enough to raise it.
+# Zone and account IDs are read back from the domain name, which has to be
+# written anyway for the hostnames, rather than kept as two more values to
+# match by hand. Costs the API token one extra permission (Zone: Zone Read),
+# and every plan carries a deprecation warning about an attribute of the
+# result nothing here reads — referencing the zone at all is enough to raise it.
 data "cloudflare_zones" "this" {
   name = var.domain
 }
 
-# Sensitive so that tfcmt, which echoes plan output into pull request comments
-# here, does not print what the lookup above exists to keep out of this public
-# repository — the same reason cluster_id is sensitive in outputs.tf.
+# Left unmarked: neither ID opens anything without an API token scoped to it.
 locals {
-  zone_id    = sensitive(one(data.cloudflare_zones.this.result).id)
-  account_id = sensitive(one(data.cloudflare_zones.this.result).account.id)
+  zone_id    = one(data.cloudflare_zones.this.result).id
+  account_id = one(data.cloudflare_zones.this.result).account.id
 }
 
 # The cluster's one way out; see applications/cloudflared for the connector
@@ -64,10 +62,10 @@ resource "cloudflare_dns_record" "tunnel" {
   zone_id = local.zone_id
   name    = "${each.key}.${var.domain}"
   type    = "CNAME"
-  # Left unmarked, unlike zone_id and account_id: Cloudflare proxies
-  # <UUID>.cfargotunnel.com only for records in the tunnel's own account, and
-  # running the tunnel takes the token, not the UUID. Marking it would hide
-  # nothing anyway: every plan and apply prints it as the tunnel's id.
+  # Left unmarked: Cloudflare proxies <UUID>.cfargotunnel.com only for records
+  # in the tunnel's own account, and running the tunnel takes the token, not
+  # the UUID. Marking it would hide nothing anyway: every plan and apply prints
+  # it as the tunnel's id.
   content = "${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com"
   proxied = true
   ttl     = 1

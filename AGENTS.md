@@ -29,7 +29,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **ローカル apply はしない**。唯一の例外がクラスタの初回 bootstrap（CI の secret 登録より先にクラスタが要ったため）。
 - **workflow には `permissions:` を書く**。owner 全体の既定が read に絞られている（github-management が配っている）ので、書かないと write が要る step だけが落ちる。
 - 残作業・TODO は **Issue で管理する**。README に書くのは現状の構成と手順だけで、作業項目のリストは置かない。
-- **repo は public**。cluster の UUID と API endpoint が PR コメントに出ないよう、`cluster_id` / `cluster_endpoint` の output は `sensitive = true` にしてある（手元では `terraform output -raw cluster_endpoint` で読める）。
+- **repo は public だが、識別子は伏せない**。`sensitive` を付けるのは資格情報と個人情報だけ。UUID・account ID・endpoint のような識別子は、token が無ければ何も開けない。そのうえ `sensitive` が隠すのは差分と output の値だけで、resource の id は plan / apply の出力にそのまま出るので、付けても隠したことにならない。
 
 ## DOKS の勘所
 

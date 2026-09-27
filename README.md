@@ -67,7 +67,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は書かず `var.domain` から引いている（public repo に識別子を置かないため）。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
+zone ID と account ID は `var.domain` から引いている。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
 token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
 
@@ -156,7 +156,7 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 #### Secret
 
-クラスタが R2 を読むためのトークンは kubectl で Secret にし、commit しない。書き込むのは手元の取り込みだけなので、クラスタには読み取りしか渡さない。R2 のエンドポイントには Cloudflare の account id が入るので、トークンと一緒に Secret に置く（public repo に account id を書かない方針のため）。
+クラスタが R2 を読むためのトークンは kubectl で Secret にし、commit しない。書き込むのは手元の取り込みだけなので、クラスタには読み取りしか渡さない。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
 
 ダッシュボードの R2 → Manage API tokens で、権限 Object Read、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
 
