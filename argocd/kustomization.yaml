@@ -5,7 +5,7 @@ namespace: argocd
 
 resources:
   - namespace.yaml
-  - github.com/argoproj/argo-cd//manifests/cluster-install?ref=v3.5.1
+  - github.com/argoproj/argo-cd//manifests/cluster-install?ref=v3.5.3
   - image-updater
 
 # Upstream ships no resource requests. On a single 2 vCPU / 4GB node the
