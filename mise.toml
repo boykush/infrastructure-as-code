@@ -8,7 +8,7 @@ doctl = "1.166.0"
 kubectl = "1.36.3"
 # Used by hand for the parameters and the key imports, and in CI by the Image
 # Updater Credential workflow — which reaches it as a shim, like every tool here.
-awscli = "2.37.0"
+awscli = "2.37.1"
 
 # `aws login` writes a profile, so it needs somewhere to write. Pointing it at
 # the repo keeps the machine-wide ~/.aws/config untouched, and pinning the
