@@ -34,9 +34,9 @@ resource "cloudflare_zero_trust_access_application" "backstage" {
   }]
 }
 
-# Argo CD's UI, behind the same gate. Unlike Backstage it keeps a login of its
-# own behind this one: Argo CD applies whatever it is given to the cluster, so
-# one slip in this gate must not be enough to hand the cluster over.
+# Argo CD's UI, behind the same gate. As with Backstage this is the only lock:
+# Argo CD takes whoever gets this far as admin (argocd/kustomization.yaml), and
+# it applies anything to the cluster, so a slip here hands the cluster over.
 resource "cloudflare_zero_trust_access_application" "argocd" {
   account_id                = local.account_id
   name                      = "argocd"

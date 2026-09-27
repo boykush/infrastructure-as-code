@@ -39,6 +39,56 @@ patches:
       data:
         server.insecure: "true"
 
+  # No login of its own: Access (terraform/access.tf) is the only lock, and
+  # whoever gets through it is the owner, so the anonymous user is admin. Both
+  # settings are read live, with no restart.
+  - target:
+      kind: ConfigMap
+      name: argocd-cm
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cm
+      data:
+        users.anonymous.enabled: "true"
+
+  - target:
+      kind: ConfigMap
+      name: argocd-rbac-cm
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-rbac-cm
+      data:
+        policy.default: role:admin
+
+  # With anonymous as admin, whatever reaches the server owns the cluster, so
+  # only the tunnel may: the MCP servers in this cluster face the internet with
+  # no login of their own. Upstream lets everything in. Probes from the node and
+  # port-forward, which lands on localhost, are beyond a NetworkPolicy's reach.
+  - target:
+      kind: NetworkPolicy
+      name: argocd-server-network-policy
+    patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-server-network-policy
+      spec:
+        ingress:
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: cloudflared
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cloudflared
+            ports:
+              - port: 8080
+                protocol: TCP
+
   - target:
       kind: StatefulSet
       name: argocd-application-controller

@@ -110,11 +110,7 @@ Secret ができるまで Image Updater は新しい digest を見つけても�
 
 ### UI
 
-`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）のワンタイム PIN を通った先で、Argo CD 自身のログインに admin で入る。
-
-```sh
-mise exec -- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
-```
+`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）のワンタイム PIN だけで入れる。Argo CD 自身のログインは無く、Access を通った相手はそのまま admin になる（anonymous を admin にしている）。
 
 port-forward でも入れる。tunnel を疑うときの切り分けに。TLS は Cloudflare で終わらせて argocd-server は平文で待っている（`argocd/kustomization.yaml` の `server.insecure`）ので、`http://localhost:8080` を開く。
 
