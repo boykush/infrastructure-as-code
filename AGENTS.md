@@ -41,7 +41,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Argo CD
 
 - **version の固定**: `argocd/kustomization.yaml` の remote base の `?ref=` が version。上げるときはそこを書き換える（Image Updater も同様に `argocd/image-updater/`）。
-- **anonymous を有効にしない**。UI は Backstage と同じ Access の内側にあるが、Access を唯一の鍵にはせず、Argo CD 自身のログインを残している（理由は `terraform/access.tf` の `argocd`）。
+- **argocd-server に届く経路を広げない**。anonymous を admin にしてあり、Argo CD 自身のログインは無い。鍵は外からの Access（`terraform/access.tf`）と、クラスタ内で cloudflared 以外を止める NetworkPolicy（`argocd/kustomization.yaml`）だけで、どちらかを緩めると届いた相手がそのまま admin になる。
 
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
