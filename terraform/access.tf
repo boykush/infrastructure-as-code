@@ -1,12 +1,18 @@
 # Backstage is served through the tunnel, but only to its owner: its guest
-# sign-in and allow-all permission policy would otherwise hand anyone the catalog
-# and the GitHub token it reads with. New Zero Trust organizations no longer get
-# One-time PIN as a login method on their own, so it is declared here.
-resource "cloudflare_zero_trust_access_identity_provider" "otp" {
+# sign-in and allow-all permission policy would otherwise let anyone run what a
+# guest may. The one login is GitHub: that account already controls the cluster
+# through GitOps, so it opens no new way in, where a One-time PIN would add the
+# mailbox as one.
+resource "cloudflare_zero_trust_access_identity_provider" "github" {
   account_id = local.account_id
-  name       = "One-time PIN"
-  type       = "onetimepin"
-  config     = {}
+  name       = "GitHub"
+  type       = "github"
+  config = {
+    # From an OAuth App made by hand, since GitHub has no API that creates one;
+    # its settings are in the README.
+    client_id     = "Ov23liNRRpwEqG6CDncj"
+    client_secret = var.access_github_client_secret
+  }
 }
 
 resource "cloudflare_zero_trust_access_policy" "owner" {
@@ -18,15 +24,15 @@ resource "cloudflare_zero_trust_access_policy" "owner" {
   }]
 }
 
-# One login method only, so the IdP picker is skipped and the PIN form comes
-# straight up.
+# One login method only, so the IdP picker is skipped and the browser goes
+# straight to GitHub.
 resource "cloudflare_zero_trust_access_application" "backstage" {
   account_id                = local.account_id
   name                      = "backstage"
   type                      = "self_hosted"
   domain                    = "backstage.${var.domain}"
   destinations              = [{ type = "public", uri = "backstage.${var.domain}" }]
-  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.otp.id]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
   auto_redirect_to_identity = true
   policies = [{
     id         = cloudflare_zero_trust_access_policy.owner.id
@@ -43,7 +49,7 @@ resource "cloudflare_zero_trust_access_application" "argocd" {
   type                      = "self_hosted"
   domain                    = "argocd.${var.domain}"
   destinations              = [{ type = "public", uri = "argocd.${var.domain}" }]
-  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.otp.id]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
   auto_redirect_to_identity = true
   policies = [{
     id         = cloudflare_zero_trust_access_policy.owner.id
@@ -54,7 +60,7 @@ resource "cloudflare_zero_trust_access_application" "argocd" {
 # The one path that answers without a login: the MCP server coding agents read
 # the catalog with. They have no identity for Access to check, and Backstage
 # cannot lift its auth policy for a single plugin, so the narrowing happens
-# here. Bypass skips enforcement; Allow would still send them to the PIN form.
+# here. Bypass skips enforcement; Allow would still send them to GitHub.
 resource "cloudflare_zero_trust_access_policy" "public" {
   account_id = local.account_id
   name       = "Public"
