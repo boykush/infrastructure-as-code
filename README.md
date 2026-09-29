@@ -110,7 +110,7 @@ Secret ができるまで Image Updater は新しい digest を見つけても�
 
 ### UI
 
-`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）のワンタイム PIN だけで入れる。Argo CD 自身のログインは無く、Access を通った相手はそのまま admin になる（anonymous を admin にしている）。
+`https://argocd.boykush.com` で開く。Backstage と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れる。Argo CD 自身のログインは無く、Access を通った相手はそのまま admin になる（anonymous を admin にしている）。
 
 port-forward でも入れる。tunnel を疑うときの切り分けに。TLS は Cloudflare で終わらせて argocd-server は平文で待っている（`argocd/kustomization.yaml` の `server.insecure`）ので、`http://localhost:8080` を開く。
 
@@ -122,7 +122,7 @@ mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:80
 
 [boykush/github-management](https://github.com/boykush/github-management) の `catalog/`（repo をまたいで作用する関係のカタログ）を見る Backstage。公式 image（`ghcr.io/backstage/backstage`）をそのまま使い、この repo が持つのは manifest と、image 既定の設定に重ねる `applications/backstage/app-config.yaml` だけ。
 
-`https://backstage.boykush.com` で開く。tunnel で公開しているが、前段の **Cloudflare Access が owner のメールアドレスしか通さない**（`terraform/access.tf`）。ログインはメールに届くワンタイム PIN で、Access を通った後の Backstage には guest で入る。
+`https://backstage.boykush.com` で開く。tunnel で公開しているが、前段の **Cloudflare Access が owner のメールアドレスしか通さない**（`terraform/access.tf`）。ログインは GitHub で、Access を通った後の Backstage には guest で入る。
 
 Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行など guest に許した操作を誰でも動かせてしまう。
 
@@ -138,8 +138,9 @@ Access を抜けただけでは足りない。**Backstage は action を無記�
 
 裏を返すと、**境界は Access の path 1本**しかない。`terraform/access.tf` の `domain` と `destinations` を触る変更はそこが全てなので、レビューではそこを見る。
 
-- 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。
-- ワンタイム PIN は、新しい Zero Trust の組織では既定のログイン方法ではないので、Terraform が identity provider として作る。ダッシュボードで既に足してあると apply が衝突するので、その ID で import する。
+- 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。照合する相手は GitHub がログインしたアカウントについて返すアドレスなので、そのアドレスにしておく（Zero Trust ダッシュボードで GitHub のログイン方法の Test を押すと見られる）。
+- GitHub ログインは owner の OAuth App を通る。Settings → Developer settings → OAuth Apps で手で作り、Homepage URL に `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL に `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback` を入れる。Client ID は `terraform/access.tf` に書き、Client secret は secret `ACCESS_GITHUB_CLIENT_SECRET` から `TF_VAR_access_github_client_secret` で渡す。
+- Client secret を替えるときは、OAuth App に新しい secret を足して `ACCESS_GITHUB_CLIENT_SECRET` を差し替え、次の apply で Cloudflare に届いてから古い方を消す。
 - base URL が公開ホスト名なので、port-forward では画面が動かない（API の切り分けにだけ使える）。
 
 catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
@@ -206,10 +207,11 @@ region = ap-northeast-1
 
 **IAM Identity Center（SSO）は使っていない。** 単一アカウントで有効化すると account instance になり、permission set も AWS アカウントの割り当ても持てない——CLI 用の認証情報はそこからは出てこない。組織インスタンスにするには AWS Organizations が要るが、`aws login` で足りるので構えを取っていない。
 
-**2. 変数を1つ渡す。** root module は1つなので、AWS だけ足すときも宣言済みの変数には値が要る。**実値を入れること**——次の手順では使われないが、同じシェルで後から full apply すると Access のポリシーがその値で書き換わる。
+**2. 変数を渡す。** root module は1つなので、AWS だけ足すときも宣言済みの変数には値が要る。**実値を入れること**——次の手順では使われないが、同じシェルで後から full apply すると Access がその値で書き換わる。
 
 ```sh
 export TF_VAR_access_owner_email=...
+export TF_VAR_access_github_client_secret=...
 ```
 
 **AWS は何も export しない。** aws provider は `login_session` を解釈するので、`AWS_PROFILE` が指すプロファイルからそのまま認証する。`aws configure export-credentials` で環境変数に固める手もあるが、**それが返すのは15分で切れる認証情報**で、作業の途中で期限が切れるうえ、env の認証情報は profile より優先されるので復旧の邪魔になる。
@@ -399,6 +401,7 @@ mise run tf:login                       # HCP backend 認証（一度だけ）
 doctl auth init                         # DO の PAT を入力（~/.config/doctl/config.yaml に保存）
 export DIGITALOCEAN_ACCESS_TOKEN=...    # provider 用（doctl と同じ変数名）
 export TF_VAR_access_owner_email=...    # Access が通すアドレス（public repo に置かないため変数で渡す）
+export TF_VAR_access_github_client_secret=...  # Access の GitHub ログイン（無ければダミーでよい。plan に差分が1つ出るだけ）
 
 cd terraform
 mise exec -- terraform init
@@ -422,6 +425,7 @@ mise exec -- terraform plan
 | `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
 | `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
 | `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
+| `ACCESS_GITHUB_CLIENT_SECRET` | Access の GitHub ログインの client secret（`TF_VAR_access_github_client_secret`） |
 
 **Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。private key は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-image-updater` role）ので、この repo が持つ App の秘密はもう無い。
 

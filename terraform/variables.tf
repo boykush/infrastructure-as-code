@@ -94,6 +94,23 @@ variable "access_owner_email" {
   }
 }
 
+# Lands in HCP state, as the provider has no write-only form of it. Unlike what
+# aws.tf keeps out of state, it opens nothing alone (GitHub hands its codes only
+# to the Access callback), and whoever can read state or CI already holds more:
+# the tunnel token, or an API token that rewrites Access outright.
+variable "access_github_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Client secret of the GitHub OAuth App that Access logs in through (access.tf). CI passes it from the ACCESS_GITHUB_CLIENT_SECRET secret as TF_VAR_access_github_client_secret."
+
+  # Empty is what an unset secret expands to, and a pasted line break would pass
+  # for part of the value; either plans cleanly and fails only at login.
+  validation {
+    condition     = can(regex("^\\S+$", var.access_github_client_secret))
+    error_message = "access_github_client_secret must be one word with no whitespace; check the ACCESS_GITHUB_CLIENT_SECRET secret."
+  }
+}
+
 variable "aws_region" {
   type        = string
   description = "Region the Claude Code token and the IAM identities live in. IAM is global; the region only decides where Parameter Store keeps the value."
