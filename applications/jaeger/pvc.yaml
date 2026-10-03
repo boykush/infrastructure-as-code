@@ -1,0 +1,19 @@
+# Where the traces live. The node pool is parked every night and comes back as a
+# new droplet, so anything on the node's own disk would be gone by morning. A
+# DigitalOcean volume is billed by its size whether or not a node is up — the
+# one thing in this cluster that parking does not stop. Nothing on it is backed
+# up: a trace expires within the week anyway (config.yaml).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jaeger-badger
+spec:
+  # This class deletes the volume along with its claim, so removing the claim
+  # also ends the bill.
+  storageClassName: do-block-storage
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      # The smallest volume DigitalOcean sells. 50,000 spans took 31MB of it
+      # (measured locally on 2.21.0), and a week of this cluster's is far fewer.
+      storage: 1Gi

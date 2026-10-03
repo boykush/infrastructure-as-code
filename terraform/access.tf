@@ -57,6 +57,24 @@ resource "cloudflare_zero_trust_access_application" "argocd" {
   }]
 }
 
+# Jaeger's UI, behind the same gate, and with it the query API and the MCP
+# endpoint on the same port. Jaeger has no login at all, so this is the only
+# lock on reading traces from outside, and a span can carry what a caller asked
+# an MCP server.
+resource "cloudflare_zero_trust_access_application" "jaeger" {
+  account_id                = local.account_id
+  name                      = "jaeger"
+  type                      = "self_hosted"
+  domain                    = "jaeger.${var.domain}"
+  destinations              = [{ type = "public", uri = "jaeger.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+}
+
 # The one path that answers without a login: the MCP server coding agents read
 # the catalog with. They have no identity for Access to check, and Backstage
 # cannot lift its auth policy for a single plugin, so the narrowing happens

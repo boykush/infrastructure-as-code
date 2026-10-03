@@ -164,6 +164,23 @@ mise exec -- kubectl -n finlake create secret generic finlake-r2 \
   --from-literal=FINLAKE_S3_SECRET_ACCESS_KEY='<secret access key>'
 ```
 
+### OpenTelemetry Collector と Jaeger
+
+workload のテレメトリーは OpenTelemetry Collector（`applications/otel-collector/`）が受け、後段の Jaeger（`applications/jaeger/`）へ流す。**workload が知るのは Collector の Service だけ**で、何をどこへ流すかは `applications/otel-collector/config.yaml` の `pipelines` と `exporters` が持つ。後段を替えるときに触るのはそこだけで、workload 側は変わらない。
+
+送る側は、OTLP の送り先を Collector の Service に向ける（ホスト名とポートは `applications/otel-collector/service.yaml`）。Jaeger を直接指しても届かない——Collector 以外からの書き込みは NetworkPolicy が落とす。
+
+Jaeger の UI は `https://jaeger.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Jaeger 自身のログインは無い。
+
+エージェントからは MCP でトレースを引ける。UI と同じポートの `/api/ai/mcp/` に出ているので、公開側は Access の内側にあり、手元からは port-forward で繋ぐ。UI も同じ port-forward で `http://localhost:16686` に開く。
+
+```sh
+mise exec -- kubectl -n jaeger port-forward svc/jaeger 16686:16686
+claude mcp add --transport http jaeger http://localhost:16686/api/ai/mcp/
+```
+
+トレースは Jaeger に内蔵の Badger が DigitalOcean の volume（`applications/jaeger/pvc.yaml`）に書くので、夜間停止で node が作り直されても残る。保持期間は `applications/jaeger/config.yaml` の `ttl`。
+
 ## Claude Code Actions のトークン（AWS）
 
 `boykush` は **User アカウントなので organization secret が無い**。Claude Code Actions を動かす repo ごとに `CLAUDE_CODE_OAUTH_TOKEN` を置くしかなく、実際 wiki は OAuth トークン、scraps は API キーと割れていた。トークンを AWS に1つ置き、**各 repo はその run の OIDC で読む**ことにして、repo 側から秘密を無くす。
@@ -433,7 +450,7 @@ HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実�
 
 ## 夜間停止（`node-pool-park.yml` / `node-pool-resume.yml`）
 
-worker node を毎晩 0 台に落として朝に戻す。課金対象は node だけなので、止めている間は課金されない。
+worker node を毎晩 0 台に落として朝に戻す。node は止めている間は課金されない（止めても課金が続くのは Jaeger の volume だけ → [費用](#費用)）。
 
 | workflow | cron（UTC） | JST | 動作 |
 | --- | --- | --- | --- |
@@ -465,7 +482,7 @@ worker node を毎晩 0 台に落として朝に戻す。課金対象は node �
 
 ## 費用
 
-クラスタで課金されるのは worker node だけで、control plane と VPC は無料。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。finlake の R2 は無料枠（保存 10 GB/月、書き込み 100 万回・読み取り 1000 万回/月、転送は無料）に収まるので $0。
+クラスタで課金されるのは worker node と Jaeger の volume で、control plane と VPC は無料。volume は **$0.10/GiB・月**（サイズは `applications/jaeger/pvc.yaml`）で、node を止めていても課金が続く。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。finlake の R2 は無料枠（保存 10 GB/月、書き込み 100 万回・読み取り 1000 万回/月、転送は無料）に収まるので $0。
 
 node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
 

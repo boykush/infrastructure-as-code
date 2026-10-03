@@ -1,0 +1,58 @@
+# Jaeger v2 is built on the OpenTelemetry Collector, with its storage and UI as
+# extensions, so its config has the shape of applications/otel-collector's.
+# Started without one, the binary runs upstream's all-in-one, which keeps traces
+# in memory; what this file changes is where they go.
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  # A listener of its own, so the kubelet's probes need no way into the UI's
+  # port.
+  healthcheckv2:
+    use_v2: true
+    http:
+      endpoint: 0.0.0.0:13133
+
+  jaeger_query:
+    storage:
+      traces: badger
+    # Read-only tools for agents at /api/ai/mcp/. They share the UI's port, so
+    # whatever guards the UI guards them.
+    ai:
+      mcp: {}
+
+  jaeger_storage:
+    backends:
+      badger:
+        badger:
+          directories:
+            keys: /badger/keys
+            values: /badger/values
+          # Defaults to true, which writes to a temporary directory and ignores
+          # the two paths above.
+          ephemeral: false
+          # Upstream keeps three days; a week leaves room to notice something
+          # late.
+          ttl:
+            spans: 168h
+
+# gRPC only: the one sender is the collector (applications/otel-collector), and
+# that is what it speaks. Without an endpoint the receiver listens on localhost,
+# which no other pod could reach.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: badger

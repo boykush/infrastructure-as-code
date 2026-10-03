@@ -1,0 +1,19 @@
+# ClusterIP only: nothing outside the cluster sends telemetry. This is the one
+# address a workload is given — otel-collector.otel-collector.svc.cluster.local,
+# on 4317 for OTLP over gRPC or 4318 over HTTP — so it has to outlive whichever
+# backend the collector forwards to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http

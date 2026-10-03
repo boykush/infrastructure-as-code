@@ -60,6 +60,11 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 - **catalog の中身は github-management が持つ**。こちら側が引き受けている分は `app-config.yaml` と `deployment.yaml` のコメントに、向こう側の契約は `catalog/all.yaml`・`catalog/Dockerfile`・`.github/workflows/catalog-image.yml` のコメントにある。catalog の形を変えるときは両方の repo を触る。
 
+## テレメトリー（`applications/otel-collector/`・`applications/jaeger/`）
+
+- **workload に教える送り先は Collector だけ**。後段（今は Jaeger）の名前を workload の manifest やアプリの repo に書かない。後段を替えるときに触るのを Collector の `exporters` 1箇所にするための分離で、Jaeger 側の NetworkPolicy が Collector 以外からの書き込みを落として守っている。
+- **Jaeger の query のポートに届く経路を広げない**。UI・query API・MCP が同じポートに居て、Jaeger にログインは無い。鍵は外からの Access（`terraform/access.tf`）と、クラスタ内で cloudflared 以外を止める NetworkPolicy（`applications/jaeger/networkpolicy.yaml`）だけで、span には MCP の呼び出し元が訊いた内容が載りうる。
+
 ## AWS の認証情報（`terraform/aws.tf`）
 
 - **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
