@@ -1,0 +1,84 @@
+# Jaeger v2 as one process: it takes traces from the collector, keeps them in
+# Badger, and serves the UI that reads them back. Badger is a library inside
+# that process rather than a database beside it, which is what lets tracing fit
+# on a node with no room for one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+spec:
+  # Badger opens its directory for one process only, so there is nothing a
+  # second replica could share.
+  replicas: 1
+  # A rolling update would start the new pod while the old one still holds the
+  # volume and Badger's lock on it, and never get past that.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # A fresh volume belongs to root; this hands it to the image's user.
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jaeger
+          # Image Updater follows only what an ImageUpdater CR names, so this tag
+          # is bumped by hand, like cloudflared's.
+          image: jaegertracing/jaeger:2.21.0
+          args:
+            - --config
+            - /etc/jaeger/config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: query
+              containerPort: 16686
+            - name: health
+              containerPort: 13133
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: health
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: health
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/jaeger
+              readOnly: true
+            # The only place it writes; the root filesystem stays read-only.
+            - name: badger
+              mountPath: /badger
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Idles under 20Mi, or 50Mi on its first run against an empty volume.
+          # The ceiling is for bursts: 50,000 spans sent at once took it to
+          # 318Mi (all measured locally on 2.21.0).
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: jaeger-config
+        - name: badger
+          persistentVolumeClaim:
+            claimName: jaeger-badger

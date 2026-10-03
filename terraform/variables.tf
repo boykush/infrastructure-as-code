@@ -73,6 +73,10 @@ variable "tunnel_routes" {
       subdomain = "argocd"
       service   = "http://argocd-server.argocd.svc.cluster.local:80"
     },
+    {
+      subdomain = "jaeger"
+      service   = "http://jaeger.jaeger.svc.cluster.local:16686"
+    },
   ]
 
   validation {

@@ -1,0 +1,42 @@
+# What stands between the workloads and whatever stores their telemetry. They
+# all send OTLP here, so replacing the backend is an edit to `exporters` below
+# and to nothing else in the cluster.
+receivers:
+  otlp:
+    protocols:
+      # The default is localhost, which no other pod could reach.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Refuses new data when memory runs short, so a burst is pushed back to the
+  # senders rather than ending in an OOM kill on a node with little to spare.
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+
+exporters:
+  # No TLS, like every other hop inside the cluster.
+  otlp_grpc/jaeger:
+    endpoint: jaeger.jaeger.svc.cluster.local:4317
+    tls:
+      insecure: true
+
+extensions:
+  # The only thing the kubelet can probe: the OTLP ports answer nothing but
+  # telemetry.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    # Traces only, because Jaeger stores nothing else: a signal gets a pipeline
+    # when it gets a backend, and until then the receiver turns it away.
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [otlp_grpc/jaeger]

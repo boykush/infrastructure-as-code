@@ -1,0 +1,24 @@
+# The OpenTelemetry Collector every workload sends its telemetry to. Its own
+# Application because it is the cluster's half of that contract: workloads know
+# only its address, so the backend behind it (Jaeger today, applications/jaeger)
+# can be replaced without touching any of them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/otel-collector
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: otel-collector
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

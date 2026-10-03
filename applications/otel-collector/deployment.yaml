@@ -1,0 +1,71 @@
+# The OpenTelemetry Collector, as a forwarder: OTLP in from the workloads, OTLP
+# out to the backend. It keeps nothing — what it has not yet handed on sits in
+# memory, and a restart loses at most that.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+spec:
+  # One node, so a second replica would buy no redundancy.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: otel-collector
+          # The core distribution: forwarding OTLP needs nothing from contrib,
+          # whose image is three times the size, and this node pulls every image
+          # again each morning. Bumped by hand, like cloudflared's.
+          image: otel/opentelemetry-collector:0.161.0
+          args:
+            - --config
+            - /etc/otelcol/config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: health
+              containerPort: 13133
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Idles at 18Mi; 50,000 spans sent at once took it to 49Mi (measured
+          # locally on 0.161.0). The limit is also what memory_limiter in
+          # config.yaml takes its percentages of.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config

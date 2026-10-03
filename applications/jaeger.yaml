@@ -1,0 +1,24 @@
+# Jaeger: the backend the collector (applications/otel-collector) forwards
+# traces to, and the UI that reads them back at jaeger.<domain> through the
+# tunnel. Jaeger has no login, so Cloudflare Access (terraform/access.tf) is
+# what keeps the UI to the owner.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jaeger
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/jaeger
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jaeger
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
