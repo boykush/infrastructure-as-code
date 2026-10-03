@@ -46,6 +46,12 @@ spec:
             # none of its own to fall back on.
             - name: OTEL_SERVICE_NAME
               value: adr-mcp
+            # OpenTelemetry's GenAI semantic conventions leave a tool call's
+            # arguments off a span unless asked for, and adi withholds the error
+            # text with them, since the text quotes them. This deployment wants
+            # both in its traces.
+            - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+              value: "true"
           ports:
             - name: http
               containerPort: 8080
