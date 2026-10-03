@@ -71,3 +71,9 @@ mcpActions:
           - id: catalog:*
             attributes:
               readOnly: true
+  # Puts each call's arguments and result on its span. Upstream leaves this off
+  # because they can be sensitive; here they are catalog reads this server
+  # already hands to anyone, and the spans stay in the cluster.
+  tracing:
+    capture:
+      toolPayload: true

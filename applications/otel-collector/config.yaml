@@ -18,6 +18,16 @@ processors:
     limit_percentage: 80
     spike_limit_percentage: 25
 
+  # Backstage is traced for its MCP server, but its catalog loop makes about
+  # 340 spans a minute on its own (measured locally on 1.55.0), which would fill
+  # Jaeger's volume within days. So of Backstage's spans, only MCP calls pass.
+  # The name is the one its Deployment sets in OTEL_SERVICE_NAME.
+  filter/backstage:
+    error_mode: ignore
+    traces:
+      span:
+        - resource.attributes["service.name"] == "backstage" and attributes["mcp.method.name"] == nil
+
 exporters:
   # No TLS, like every other hop inside the cluster.
   otlp_grpc/jaeger:
@@ -38,5 +48,5 @@ service:
     # when it gets a backend, and until then the receiver turns it away.
     traces:
       receivers: [otlp]
-      processors: [memory_limiter]
+      processors: [memory_limiter, filter/backstage]
       exporters: [otlp_grpc/jaeger]
