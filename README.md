@@ -7,7 +7,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 | 項目 | 値 | 補足 |
 | --- | --- | --- |
 | region | `sgp1`（Singapore） | DO に東京リージョンは無く、日本から最も近い |
-| Kubernetes | `1.36` 系 | patch は DO の auto-upgrade 任せ。minor は `kubernetes_version_prefix` で固定 |
+| Kubernetes | `terraform/variables.tf` の `kubernetes_version_prefix` が固定する minor | patch は DO の auto-upgrade 任せ |
 | node pool | `s-2vcpu-4gb` × 1 | 連続稼働で $24/月。Argo CD + DOKS の system pod が載る実質の下限。夜間は 0 台に落とす |
 | control plane | 非 HA | 無料。HA にすると +$40/月 |
 | VPC | 専用 / `10.10.0.0/16` | 無料。`ip_range` は後から変更できない |
@@ -15,11 +15,11 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 
 ## Argo CD
 
-クラスタ上のアプリケーションは Argo CD（v3.5.1）で同期する。Argo CD 自身も Application として自己管理される。
+クラスタ上のアプリケーションは Argo CD で同期する。Argo CD 自身も Application として自己管理される。
 
 | ディレクトリ | 中身 |
 | --- | --- |
-| `argocd/` | Argo CD 本体と Image Updater（kustomize の remote base を version 固定） |
+| `argocd/` | Argo CD 本体と Image Updater（kustomize の remote base。version はそれぞれの `kustomization.yaml` の `?ref=`） |
 | `applications/` | アプリごとに `<name>.yaml`（Application）と `<name>/`（manifest）。イメージのビルドは各アプリのリポジトリ側 |
 
 ### bootstrap（初回のみ）
@@ -276,7 +276,7 @@ mise exec -- aws logout
         uses: boykush/workflows/.github/actions/claude-code-token@<sha>
 
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
+        uses: anthropics/claude-code-action@<sha>
         with:
           claude_code_oauth_token: ${{ steps.claude-token.outputs.token }}
 ```
@@ -389,7 +389,7 @@ Terraform / doctl / kubectl / AWS CLI を [mise](https://mise.jdx.dev/) で固�
 mise install   # mise.toml のバージョンで導入
 ```
 
-kubectl をリポジトリ側で固定しているのは、マシン全体の client（1.30）が DOKS 1.36 に対して skew（±1 minor）を超えているため。
+kubectl をリポジトリ側で固定しているのは、マシン全体の client（1.30）がクラスタの minor（`kubernetes_version_prefix`）に対して skew（±1 minor）を超えているため。
 
 ## Local development
 
