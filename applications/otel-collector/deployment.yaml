@@ -56,15 +56,16 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-          # Idles at 18Mi; 50,000 spans sent at once took it to 49Mi (measured
-          # locally on 0.161.0). The limit is also what memory_limiter in
-          # config.yaml takes its percentages of.
+          # Holds around 55Mi while it filters Backstage's steady stream, against
+          # 18Mi with nothing sending; 50,000 spans sent at once add about 30Mi
+          # (measured locally on 0.161.0). The limit is also what memory_limiter
+          # in config.yaml takes its percentages of.
           resources:
             requests:
               cpu: 25m
-              memory: 32Mi
+              memory: 64Mi
             limits:
-              memory: 128Mi
+              memory: 256Mi
       volumes:
         - name: config
           configMap:

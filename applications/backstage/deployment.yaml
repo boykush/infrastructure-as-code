@@ -46,6 +46,30 @@ spec:
               memory: 16Mi
             limits:
               memory: 32Mi
+        # Backstage makes a span for every MCP tool call, but its image carries
+        # OpenTelemetry's API without an SDK, so they go nowhere. This is what
+        # the OpenTelemetry Operator injects for Node.js, copied in by hand: an
+        # operator costs memory this node cannot spare. Its @opentelemetry/api
+        # must not be older than Backstage's, or the spans stop without a word.
+        - name: otel-instrumentation
+          image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.78.0
+          command: [cp, -r, /autoinstrumentation/., /otel-auto-instrumentation-nodejs]
+          volumeMounts:
+            - name: otel-instrumentation
+              mountPath: /otel-auto-instrumentation-nodejs
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # The copy is 133MB, and the page cache it passes through counts
+          # against the limit: at 64Mi it was killed partway (measured locally).
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 256Mi
       containers:
         - name: backstage
           # Image Updater follows only what an ImageUpdater CR names, so this tag
@@ -60,6 +84,34 @@ spec:
             - app-config.yaml
             - --config
             - /config/app-config.yaml
+          env:
+            # Loads the SDK the init container copied in, ahead of Backstage.
+            - name: NODE_OPTIONS
+              value: --require /otel-auto-instrumentation-nodejs/autoinstrumentation.js
+            # The collector's filter picks Backstage's spans out by this name
+            # (applications/otel-collector/config.yaml).
+            - name: OTEL_SERVICE_NAME
+              value: backstage
+            # The collector is the only address a workload is given
+            # (applications/otel-collector/service.yaml).
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.otel-collector.svc.cluster.local:4318
+            # The collector has a pipeline for traces alone, so these two would
+            # have nowhere to go.
+            - name: OTEL_METRICS_EXPORTER
+              value: none
+            - name: OTEL_LOGS_EXPORTER
+              value: none
+            # Only the spans Backstage makes itself are wanted: with every
+            # instrumentation on, one tool call is 187 spans (measured locally
+            # on 1.55.0). Naming one is how the rest are turned off, and this
+            # one makes no spans.
+            - name: OTEL_NODE_ENABLED_INSTRUMENTATIONS
+              value: runtime-node
+            # The default asks each cloud's metadata endpoint who it is running
+            # on at startup, and none of them is here.
+            - name: OTEL_NODE_RESOURCE_DETECTORS
+              value: env,host,os
           ports:
             - name: http
               containerPort: 7007
@@ -87,6 +139,9 @@ spec:
             - name: catalog
               mountPath: /catalog
               readOnly: true
+            - name: otel-instrumentation
+              mountPath: /otel-auto-instrumentation-nodejs
+              readOnly: true
             # The only place it writes; the root filesystem stays read-only.
             - name: tmp
               mountPath: /tmp
@@ -112,3 +167,6 @@ spec:
         - name: catalog
           emptyDir:
             sizeLimit: 16Mi
+        - name: otel-instrumentation
+          emptyDir:
+            sizeLimit: 256Mi
