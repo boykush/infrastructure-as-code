@@ -35,6 +35,17 @@ spec:
           # arrive over the pod network.
           args:
             - "0.0.0.0:8080"
+          env:
+            # Setting this is what turns adi's tracing on; without it adi sends
+            # nothing. The collector is the only address a workload is given
+            # (applications/otel-collector/service.yaml), and the port is its
+            # HTTP one because adi speaks OTLP over HTTP alone.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.otel-collector.svc.cluster.local:4318
+            # The name this server has on the tunnel and in the catalog. adi has
+            # none of its own to fall back on.
+            - name: OTEL_SERVICE_NAME
+              value: adr-mcp
           ports:
             - name: http
               containerPort: 8080
