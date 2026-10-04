@@ -39,6 +39,22 @@ spec:
             - "wiki-mcp.boykush.com"
             - "--allowed-host"
             - "wiki.remote-mcp-server.svc.cluster.local"
+          env:
+            # Setting this is what turns scraps's tracing on; without it scraps
+            # sends nothing. The collector is the only address a workload is
+            # given (applications/otel-collector/service.yaml), and the port is
+            # its HTTP one because scraps speaks OTLP over HTTP alone.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.otel-collector.svc.cluster.local:4318
+            # The name this server has on the tunnel and in the catalog, rather
+            # than one that names the binary every scraps wiki would share.
+            - name: OTEL_SERVICE_NAME
+              value: wiki-mcp
+            # OpenTelemetry's GenAI semantic conventions leave a tool call's
+            # arguments off a span unless asked for, and scraps withholds the
+            # error text with them. This deployment wants both in its traces.
+            - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+              value: "true"
           ports:
             - name: http
               containerPort: 1113
