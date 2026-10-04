@@ -1,0 +1,39 @@
+# What agentgateway is here for is one bridge in tracing. A client such as
+# Claude Code passes a trace's ID in an HTTP header, while the MCP conventions,
+# and so the servers behind this, read it from the request's `_meta`.
+# agentgateway copies the one into the other, so no server has to know how any
+# client behaves.
+frontendPolicies:
+  tracing:
+    host: otel-collector.otel-collector.svc.cluster.local:4317
+    protocol: grpc
+    # Off by default, which traces only the requests that arrive with a trace.
+    # The servers trace every request, and without this the gateway's hop
+    # would be missing from all the ones a client sent without an ID.
+    randomSampling: true
+
+binds:
+  - port: 3000
+    listeners:
+      - routes:
+          # One route per public hostname. cloudflared forwards under the Host
+          # the client asked for, so this is the same split the tunnel makes.
+          # One target per route also keeps the tools' names as the server
+          # gives them: several targets would prefix each with its target.
+          - hostnames: [adr-mcp.boykush.com]
+            backends:
+              - mcp:
+                  # The servers keep no session, so the gateway keeps none.
+                  statefulMode: stateless
+                  targets:
+                    - name: adr
+                      mcp:
+                        host: http://adr.remote-mcp-server.svc.cluster.local:8080/mcp
+          - hostnames: [wiki-mcp.boykush.com]
+            backends:
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: wiki
+                      mcp:
+                        host: http://wiki.remote-mcp-server.svc.cluster.local:1113/mcp
