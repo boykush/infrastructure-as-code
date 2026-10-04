@@ -29,13 +29,16 @@ spec:
           # on; what actually runs is the digest pinned there.
           image: ghcr.io/boykush/wiki-mcp-server:main
           # The entrypoint is already `scraps mcp serve --http`, so the first
-          # argument is the listen address. The second names the Host header the
-          # tunnel forwards under: scraps validates it (rmcp's DNS rebinding
-          # protection) and would otherwise answer 403 to everything public.
+          # argument is the listen address. scraps validates Host (rmcp's DNS
+          # rebinding protection) and answers 403 to any it was not given: the
+          # tunnel forwards under the public name, and agentgateway dials the
+          # Service under its in-cluster one.
           args:
             - "0.0.0.0:1113"
             - "--allowed-host"
             - "wiki-mcp.boykush.com"
+            - "--allowed-host"
+            - "wiki.remote-mcp-server.svc.cluster.local"
           ports:
             - name: http
               containerPort: 1113
