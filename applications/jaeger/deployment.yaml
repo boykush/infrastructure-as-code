@@ -37,6 +37,13 @@ spec:
           args:
             - --config
             - /etc/jaeger/config.yaml
+          env:
+            # Jaeger's own spans, to the collector like any workload's
+            # (applications/otel-collector/service.yaml). Its tracer reads only
+            # the environment, not service.telemetry, and unset it sends to
+            # localhost:4317: its own receiver, past the collector's filter.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.otel-collector.svc.cluster.local:4317
           ports:
             - name: otlp-grpc
               containerPort: 4317

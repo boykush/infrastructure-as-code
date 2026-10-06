@@ -28,6 +28,16 @@ processors:
       span:
         - resource.attributes["service.name"] == "backstage" and attributes["mcp.method.name"] == nil
 
+  # Jaeger is traced for its MCP server too, and tracing it is all or nothing,
+  # so its UI and query API are dropped here: a span for every page the UI
+  # loads. Told apart by tracer, since a tool call's span carries no
+  # mcp.method.name.
+  filter/jaeger:
+    error_mode: ignore
+    traces:
+      span:
+        - resource.attributes["service.name"] == "jaeger" and instrumentation_scope.name != "jaeger.mcp"
+
 exporters:
   # No TLS, like every other hop inside the cluster.
   otlp_grpc/jaeger:
@@ -48,5 +58,5 @@ service:
     # when it gets a backend, and until then the receiver turns it away.
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, filter/backstage]
+      processors: [memory_limiter, filter/backstage, filter/jaeger]
       exporters: [otlp_grpc/jaeger]
