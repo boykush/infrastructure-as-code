@@ -73,6 +73,18 @@ resource "cloudflare_zero_trust_access_application" "jaeger" {
     id         = cloudflare_zero_trust_access_policy.owner.id
     precedence = 1
   }]
+
+  # The way in for an agent, which cannot follow the redirect to GitHub: Access
+  # answers it 401 with OAuth metadata and issues the token itself, after the
+  # same login and policy. Any client may register, but only with a redirect to
+  # localhost, so a token lands nowhere but the machine that asked.
+  oauth_configuration = {
+    enabled = true
+    dynamic_client_registration = {
+      enabled                = true
+      allow_any_on_localhost = true
+    }
+  }
 }
 
 # The one path that answers without a login: the MCP server coding agents read
