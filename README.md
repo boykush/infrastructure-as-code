@@ -175,11 +175,14 @@ workload のテレメトリーは OpenTelemetry Collector（`applications/otel-c
 
 Jaeger の UI は `https://jaeger.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Jaeger 自身のログインは無い。
 
-エージェントからは MCP でトレースを引ける。UI と同じポートの `/api/ai/mcp/` に出ているので、公開側は Access の内側にあり、手元からは port-forward で繋ぐ。UI も同じ port-forward で `http://localhost:16686` に開く。
+エージェントからは MCP でトレースを引ける。UI と同じポートの `/api/ai/mcp/` に出ていて、同じ Access の内側にある。エージェントは GitHub へのリダイレクトを辿れないので、Access の Managed OAuth（`terraform/access.tf` の `oauth_configuration`）が代わりの入口になる——Access が 401 で OAuth の metadata を返し、同じ GitHub ログインと owner policy を通した後に token を出す。Jaeger 自身には MCP だけに掛けられる認証が無い。
+
+この repo で動くエージェントの接続先は `.mcp.json` にあり、初回だけ `/mcp` から認証する。`oauth_configuration` を変えた直後は数分待つ——反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
+
+port-forward でも入れる。tunnel を疑うときの切り分けに。UI は `http://localhost:16686`、MCP はその `/api/ai/mcp/`。
 
 ```sh
 mise exec -- kubectl -n jaeger port-forward svc/jaeger 16686:16686
-claude mcp add --transport http jaeger http://localhost:16686/api/ai/mcp/
 ```
 
 トレースは Jaeger に内蔵の Badger が DigitalOcean の volume（`applications/jaeger/pvc.yaml`）に書くので、夜間停止で node が作り直されても残る。保持期間は `applications/jaeger/config.yaml` の `ttl`。
