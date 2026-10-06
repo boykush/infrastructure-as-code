@@ -21,6 +21,10 @@ extensions:
   jaeger_query:
     storage:
       traces: badger
+    # Off by default, and all or nothing: the UI and query API are traced with
+    # the MCP calls, and the collector keeps only the latter. Where the spans
+    # go is not set in this file (deployment.yaml has it).
+    enable_tracing: true
     # Read-only tools for agents at /api/ai/mcp/. They share the UI's port, so
     # whatever guards the UI guards them.
     ai:
