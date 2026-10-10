@@ -3,6 +3,9 @@ kind: Kustomization
 
 resources:
   - sync-cronjob.yaml
+  - mcp-deployment.yaml
+  - mcp-service.yaml
+  - networkpolicy.yaml
   - externalsecret.yaml
   - imageupdater.yaml
 

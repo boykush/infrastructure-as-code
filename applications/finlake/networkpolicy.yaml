@@ -1,0 +1,24 @@
+# The MCP server has no login, so inside the cluster only the tunnel may reach
+# it: the other MCP servers face the internet with no login of their own, and
+# this one answers with household money. Probes from the node and port-forward,
+# which lands on localhost, are beyond a NetworkPolicy's reach.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mcp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - port: 8080
+          protocol: TCP

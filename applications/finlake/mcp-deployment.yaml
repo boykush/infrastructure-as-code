@@ -1,0 +1,78 @@
+# Serves the product transactions over MCP. The server has no login of its own
+# and the data is private: what guards it is Access on the hostname
+# (terraform/access.tf) and networkpolicy.yaml inside the cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp
+spec:
+  # One node, and the data lives in R2, so there is no state to spread.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mcp
+          # The tag here is only what the kustomization's images block matches
+          # on; what runs is the digest pinned there.
+          image: ghcr.io/boykush/finlake:main
+          # Listens on 0.0.0.0:8080 by default.
+          args: ["mcp"]
+          env:
+            - name: FINLAKE_LAKE_ROOT
+              value: s3://finlake
+            # R2 speaks S3 with region "auto", addressed path-style.
+            - name: FINLAKE_S3_REGION
+              value: auto
+            - name: FINLAKE_S3_URL_STYLE
+              value: path
+          # FINLAKE_S3_ENDPOINT, FINLAKE_S3_ACCESS_KEY_ID and
+          # FINLAKE_S3_SECRET_ACCESS_KEY. The sync's token, which can also
+          # write; the server itself only ever reads.
+          envFrom:
+            - secretRef:
+                name: finlake-r2-sync
+          ports:
+            - name: http
+              containerPort: 8080
+          # /mcp only answers POST.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # DuckDB spills here when a query outgrows memory.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          # Held 63Mi idle (measured locally); a query adds DuckDB's working set.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

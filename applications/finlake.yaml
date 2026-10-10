@@ -1,7 +1,7 @@
 # boykush/finlake: household money data in an R2 bucket (terraform/r2.tf). The
 # owner uploads Money Forward ME's CSVs to the raw layer of the bucket; the sync
-# CronJob here turns them into the product. The MCP server that serves the
-# product also belongs here, and has not joined yet.
+# CronJob here turns them into the product, and the MCP server beside it serves
+# the product to agents.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
