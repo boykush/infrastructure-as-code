@@ -78,12 +78,14 @@ jobs:
 
       # Credentials for the aws provider. Nothing is stored anywhere: the role is
       # assumed with this run's OIDC token and the session dies with the job.
-      # Only this repository's main branch can assume it (terraform/aws.tf).
+      # A pull request runs its branch's copy of this file, so it gets the
+      # read-only plan role; only main can assume the one that applies
+      # (terraform/aws.tf).
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: ap-northeast-1
-          role-to-assume: arn:aws:iam::509266991346:role/github-actions-terraform
+          role-to-assume: ${{ github.event_name == 'pull_request' && 'arn:aws:iam::509266991346:role/github-actions-terraform-plan' || 'arn:aws:iam::509266991346:role/github-actions-terraform' }}
 
       # Installs the toolchain pinned in mise.toml. mise installs the raw
       # terraform binary (no stdout-capturing wrapper), which is what tfcmt

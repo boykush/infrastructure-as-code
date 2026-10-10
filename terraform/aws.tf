@@ -36,9 +36,12 @@ locals {
     ]
   ])
 
+  # Runs of main only. Both roles that share this can write — the apply and the
+  # operator's access key — and a run on any other ref executes that branch's
+  # own copy of the workflows. Pull requests plan with the role below instead.
   this_repository_subjects = [
-    "repo:${var.github_owner}/${local.terraform_repository}:*",
-    "repo:${var.github_owner}@${var.github_owner_id}/${local.terraform_repository}@*:*",
+    "repo:${var.github_owner}/${local.terraform_repository}:ref:refs/heads/main",
+    "repo:${var.github_owner}@${var.github_owner_id}/${local.terraform_repository}@*:ref:refs/heads/main",
   ]
 
   # Runs a pull request wakes, and nothing else: a push to a branch carries
