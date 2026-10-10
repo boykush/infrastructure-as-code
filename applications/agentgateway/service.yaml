@@ -1,0 +1,15 @@
+# ClusterIP only: the internet reaches this through the tunnel, which addresses
+# it as agentgateway.agentgateway.svc.cluster.local:3000. Which hostnames the
+# tunnel sends here is terraform/variables.tf's business.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentgateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: agentgateway
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

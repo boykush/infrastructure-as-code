@@ -1,0 +1,72 @@
+# agentgateway, a proxy that reads MCP, run from a static config. It holds no
+# state: with stateless routes each request stands alone, so a restart drops
+# only what was in flight.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentgateway
+spec:
+  # One node, so a second replica would buy no redundancy.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agentgateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agentgateway
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agentgateway
+          # Image Updater follows only what an ImageUpdater CR names, so this tag
+          # is bumped by hand, like cloudflared's.
+          image: ghcr.io/agentgateway/agentgateway:v1.6.0
+          args:
+            - -f
+            - /etc/agentgateway/config.yaml
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: health
+              containerPort: 15021
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: health
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: health
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/agentgateway
+              readOnly: true
+            # The only place it writes; the root filesystem stays read-only.
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Held 21Mi after serving traced sessions (measured locally on v1.6.0).
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: agentgateway-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
