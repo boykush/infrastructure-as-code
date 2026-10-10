@@ -60,7 +60,7 @@ output "github_app_role_arns" {
   value       = { for name, role in aws_iam_role.github_app : name => role.arn }
 }
 
-output "cluster_secrets_role_arn" {
-  description = "Role that reads the cluster's Secrets from Parameter Store (written into .github/workflows/cluster-secrets.yml)."
-  value       = aws_iam_role.cluster_secrets.arn
+output "external_secrets_credential_role_arn" {
+  description = "Role that reads the operator's access key from Parameter Store (written into .github/workflows/external-secrets-credential.yml)."
+  value       = aws_iam_role.external_secrets_credential.arn
 }

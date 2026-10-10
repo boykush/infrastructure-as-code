@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - sync-cronjob.yaml
+  - externalsecret.yaml
   - imageupdater.yaml
 
 # Image Updater rewrites this entry, pinning the digest behind the moving `main`

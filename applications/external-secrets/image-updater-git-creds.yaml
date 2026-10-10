@@ -1,0 +1,23 @@
+# The GitHub App credential Image Updater writes back with (the ImageUpdater
+# CRs name this Secret). It lives here rather than under argocd/ because that
+# directory is applied by hand at bootstrap, before this CRD exists.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: image-updater-git-creds
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: parameter-store
+  data:
+    - secretKey: githubAppID
+      remoteRef:
+        key: /cluster-secrets/argocd/image-updater-git-creds/githubAppID
+    - secretKey: githubAppInstallationID
+      remoteRef:
+        key: /cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID
+    - secretKey: githubAppPrivateKey
+      remoteRef:
+        key: /cluster-secrets/argocd/image-updater-git-creds/githubAppPrivateKey

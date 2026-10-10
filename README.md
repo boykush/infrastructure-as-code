@@ -69,7 +69,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 zone ID と account ID は `var.domain` から引いている。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
-token は credential なので git に入れず、[クラスタの Secret](#クラスタの-secret) の経路で入れる。tunnel を作り直したときだけやり直す。
+token は credential なので git に入れず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。tunnel を作り直したときだけやり直す。
 
 ```sh
 mise exec -- terraform -chdir=terraform output -raw tunnel_token \
@@ -90,7 +90,7 @@ mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 
 Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset のうち push を止めるもの（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id をそれらすべての bypass actor に足す（github-management の ruleset module が付ける）。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
 
-credential は [クラスタの Secret](#クラスタの-secret) の経路で入れる。Secret `argocd/image-updater-git-creds` の3つの key がそのまま App の3つの値で、**private key も GitHub には置かない**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
+credential は Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。Secret `argocd/image-updater-git-creds` の3つの key がそのまま App の3つの値で、**private key も GitHub には置かない**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
 
 ```sh
 echo 4703313 | mise run cluster:secret argocd image-updater-git-creds githubAppID
@@ -104,19 +104,31 @@ Secret ができるまで Image Updater は新しい digest を見つけても�
 
 ### クラスタの Secret
 
-クラスタの Secret は kubectl で手作りしない。値は Parameter Store に置き、Actions の **Cluster Secrets**（`workflow_dispatch`）がクラスタへ書く。手元に DO の PAT が要らず、値を替えたときもクラスタを作り直したときも同じ workflow を回すだけで戻る。
+クラスタの Secret は kubectl で手作りしない。値は Parameter Store に置き、External Secrets Operator（`applications/external-secrets.yaml`）がクラスタの Secret に同期する。**どの parameter がどの Secret になるかは、使う app の隣の `ExternalSecret` が持つ**ので、ここには写さない。
 
-parameter の名前が Secret の宛先を兼ねる（形は `terraform/variables.tf` の `cluster_secrets_parameter_path`）。**何を入れるかの一覧はどこにも書かない**——path の下にあるものが全てで、Secret を増やすのに workflow も Terraform も触らない。
+値を入れる・替えるのは parameter を書くだけで、手元に DO の PAT は要らない。クラスタを作り直したときも operator が全部戻す。
 
 ```sh
 mise exec -- aws login
 mise run cluster:secret <namespace> <secret> <key>   # 値を貼って Ctrl-D
-gh workflow run cluster-secrets.yml
 ```
 
-**pod が自分で取りに行く形（External Secrets Operator など）にはできない。** DOKS が ServiceAccount token に書く issuer はクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、AWS から検証できない。残るのは長命の access key を pod に渡す道だけなので、既に信頼のある GitHub の OIDC から押し込んでいる。
+反映は `ExternalSecret` の `refreshInterval` ごと。Secret を env で読んでいる Pod は、Secret が変わっても再起動するまで古い値のまま動く。
 
-押し込む形なので、**Parameter Store を書き換えただけではクラスタに届かない**。workflow を回すまでが入れ替え。Secret は control plane に残るので、夜間停止では消えない。
+Secret を増やすときは、app の directory に `ExternalSecret` を足し、同じ名前の parameter を書く。operator が読めるのは `terraform/variables.tf` の `cluster_secrets_parameter_path` の下だけ。
+
+#### operator 自身の access key
+
+**operator は IAM の access key で Parameter Store を読む**——この基盤で唯一の長命な AWS の鍵。role にできないのは、DOKS が ServiceAccount token に書く issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、AWS から検証できないため。鍵が開くのは上の path の読み取りだけ（`terraform/aws.tf`）。
+
+この鍵だけは operator が自分で取れないので、Actions の **External Secrets Credential**（`workflow_dispatch`）が GitHub の OIDC で読んでクラスタに入れる。鍵を作るのも入れ替えるのも同じ2行で、クラスタを作り直したときは2行目だけ。
+
+```sh
+mise run external-secrets:key
+gh workflow run external-secrets-credential.yml
+```
+
+`external-secrets:key` は古い鍵を消してから新しい鍵を作る。workflow が届けるまで operator は同期できないが、クラスタにある Secret はそのまま残るので、止まるのは更新だけ。鍵の値は端末に出ない。
 
 ### UI
 
@@ -172,7 +184,7 @@ mise exec -- kubectl -n finlake logs -f job/<上で出た名前>
 
 #### Secret
 
-`sync` が R2 を読み書きするためのトークンは commit せず、[クラスタの Secret](#クラスタの-secret) の経路で入れる。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
+`sync` が R2 を読み書きするためのトークンは commit せず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
 
 ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。MCP サーバーを足すときは、読み取りだけのトークンを別に作って別の Secret にする。
 
@@ -343,7 +355,7 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 App の id（App ID / Client ID）はここに書かない。台帳は github-management の catalog（`resource:<app>-app` の annotation）で、run から引く写しを `github-app-token` が持つ。
 
-**`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、**Cluster Secrets** が OIDC で読んでクラスタの Secret にする（→ [クラスタの Secret](#クラスタの-secret)）。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
+**`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、External Secrets Operator がクラスタの Secret にする（→ [クラスタの Secret](#クラスタの-secret)）。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
 
 費用は **key 1本 $1/月**（本数は `github_apps` の数）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
 
@@ -467,7 +479,7 @@ mise exec -- terraform plan
 | `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
 | `ACCESS_GITHUB_CLIENT_SECRET` | Access の GitHub ログインの client secret（`TF_VAR_access_github_client_secret`） |
 
-**Cluster Secrets**（`workflow_dispatch`）は Parameter Store の値をクラスタの Secret として適用する（→ [クラスタの Secret](#クラスタの-secret)）。Secret を書くので push では起動しない。値は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-cluster-secrets` role）ので、クラスタに入れる秘密をこの repo は持たない。
+**External Secrets Credential**（`workflow_dispatch`）は External Secrets Operator の access key を Secret `external-secrets/parameter-store-credentials` として適用する（→ [クラスタの Secret](#クラスタの-secret)）。Secret を書くので push では起動しない。鍵は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-external-secrets` role）。
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 
