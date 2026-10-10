@@ -4,8 +4,8 @@ dependencies:
 - repo_url: boykush/ai-plugins
   name: adr-remote-mcp
   host: github.com
-  resolved_commit: a29aa379e5a893c66f0f9ed7a597490bc7841628
-  resolved_ref: a29aa379e5a893c66f0f9ed7a597490bc7841628
+  resolved_commit: 868d0cdb830fc794ee657146a4d6ead129a6e25c
+  resolved_ref: 868d0cdb830fc794ee657146a4d6ead129a6e25c
   version: 0.1.0
   virtual_path: plugins/adr-remote-mcp
   is_virtual: true
@@ -42,18 +42,18 @@ dependencies:
 - repo_url: boykush/ai-plugins
   name: catalog-remote-mcp
   host: github.com
-  resolved_commit: a29aa379e5a893c66f0f9ed7a597490bc7841628
-  resolved_ref: a29aa379e5a893c66f0f9ed7a597490bc7841628
+  resolved_commit: 868d0cdb830fc794ee657146a4d6ead129a6e25c
+  resolved_ref: 868d0cdb830fc794ee657146a4d6ead129a6e25c
   version: 0.1.0
   virtual_path: plugins/catalog-remote-mcp
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:85c6674a2220650d28eef0b3b833899f7cc44c1bfe54208584ae8078e4c814ac
+  content_hash: sha256:190f60cb8c3ff2d825bac075161fb04d4d365169804f602ac74f02bfc745636a
 - repo_url: boykush/ai-plugins
   name: jaeger-remote-mcp
   host: github.com
-  resolved_commit: 29425edfbdcd3832defaaf720ac21744aee832fd
-  resolved_ref: 29425edfbdcd3832defaaf720ac21744aee832fd
+  resolved_commit: 868d0cdb830fc794ee657146a4d6ead129a6e25c
+  resolved_ref: 868d0cdb830fc794ee657146a4d6ead129a6e25c
   version: 0.1.0
   virtual_path: plugins/jaeger-remote-mcp
   is_virtual: true
