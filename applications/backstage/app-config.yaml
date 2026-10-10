@@ -49,6 +49,9 @@ app:
             - url: https://dash.cloudflare.com
               label: Cloudflare
               icon: dashboard
+            - url: https://console.aws.amazon.com
+              label: AWS
+              icon: dashboard
             - url: https://github.com/boykush?tab=repositories
               label: GitHub
               icon: github
