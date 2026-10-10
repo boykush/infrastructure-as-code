@@ -19,6 +19,37 @@ app:
           unidirectional: false
           mergeRelations: true
           direction: LR
+    # Home is only the consoles opened without going through an entity; any
+    # other link belongs on its entity in github-management. Nothing that is
+    # saved per user is shown, since the in-memory database forgets it on
+    # every restart.
+    - page:home:
+        config:
+          defaultConfig:
+            - component: HomePageToolkit
+              column: 0
+              row: 0
+              width: 12
+              height: 3
+    - home-page-widget:home/toolkit:
+        config:
+          tools:
+            - url: https://argocd.boykush.com
+              label: Argo CD
+              icon: dashboard
+            - url: https://jaeger.boykush.com
+              label: Jaeger
+              icon: dashboard
+            - url: https://app.terraform.io/app/boykush/workspaces
+              label: HCP Terraform
+              icon: dashboard
+            - url: https://github.com/boykush?tab=repositories
+              label: GitHub
+              icon: github
+    # The Welcome card is compiled into the image; the other two are on by default.
+    - home-page-widget:home/getting-started: false
+    - home-page-widget:home/random-joke: false
+    - home-page-widget:home/world-clock: false
 organization:
   name: boykush
 backend:
