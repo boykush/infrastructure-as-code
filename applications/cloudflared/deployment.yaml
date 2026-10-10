@@ -45,8 +45,8 @@ spec:
             # A remotely-managed tunnel: the routing table lives on
             # Cloudflare's side, put there by terraform/cloudflare.tf rather
             # than by this Deployment, so the token is the connector's entire
-            # configuration. It is also a credential — like the Image Updater's
-            # git creds it is created with kubectl, never committed.
+            # configuration. It is also a credential, so it is never committed:
+            # the Cluster Secrets workflow puts it here from Parameter Store.
             - name: TUNNEL_TOKEN
               valueFrom:
                 secretKeyRef:

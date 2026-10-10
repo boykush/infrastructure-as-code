@@ -12,14 +12,14 @@ locals {
   # knows the repository it is checked out from, so it is written out.
   terraform_repository = "infrastructure-as-code"
 
-  claude_code_parameter_arn   = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
-  image_updater_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.image_updater_parameter_name}"
+  claude_code_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
+  cluster_secrets_path_arn  = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.cluster_secrets_parameter_path}"
 
   # The roles below are named here rather than read off the resources, because
   # the policy CI applies with has to name them before they exist — see the
   # ordering note there. Same construction as the parameter ARNs above.
-  image_updater_role_name = "github-actions-image-updater"
-  github_app_role_names   = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
+  cluster_secrets_role_name = "github-actions-cluster-secrets"
+  github_app_role_names     = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
   # 2026-07-15, and for older ones once they opt in. Both spellings are listed
@@ -215,11 +215,12 @@ resource "aws_iam_role_policy" "github_app" {
   policy = data.aws_iam_policy_document.github_app[each.key].json
 }
 
-# The one app KMS cannot hold: Argo CD Image Updater signs its own JWTs inside
-# the cluster, so what it is given has to be the PEM. Parameter Store keeps the
-# single copy and the credential workflow reads it with this repository's OIDC
-# identity, which is what takes it out of a repository secret.
-data "aws_iam_policy_document" "image_updater_trust" {
+# Every Secret the cluster holds, one parameter per key. No pod can fetch them
+# itself: the cluster signs its service account tokens as an in-cluster name
+# (kubernetes.default.svc.cluster.local) that AWS cannot reach to verify. So a
+# workflow of this repository reads them with its own OIDC identity and writes
+# them in, which is what takes kubectl and a DigitalOcean token out of it.
+data "aws_iam_policy_document" "cluster_secrets_trust" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -243,26 +244,33 @@ data "aws_iam_policy_document" "image_updater_trust" {
   }
 }
 
-data "aws_iam_policy_document" "image_updater" {
+# The parameters are no more resources here than the Claude Code token is, and
+# for the same reason. Among them is the one app key KMS cannot hold: Argo CD
+# Image Updater signs its own JWTs inside the cluster, so it needs the PEM.
+data "aws_iam_policy_document" "cluster_secrets" {
   statement {
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = [local.image_updater_parameter_arn]
+    effect  = "Allow"
+    actions = ["ssm:GetParametersByPath"]
+
+    resources = [
+      local.cluster_secrets_path_arn,
+      "${local.cluster_secrets_path_arn}/*",
+    ]
   }
 }
 
-resource "aws_iam_role" "image_updater" {
+resource "aws_iam_role" "cluster_secrets" {
   depends_on = [aws_iam_role_policy.terraform]
 
-  name               = local.image_updater_role_name
-  description        = "Read the Image Updater app's private key from Parameter Store, for this repository's credential workflow"
-  assume_role_policy = data.aws_iam_policy_document.image_updater_trust.json
+  name               = local.cluster_secrets_role_name
+  description        = "Read the cluster's Secrets from Parameter Store, for this repository's Cluster Secrets workflow"
+  assume_role_policy = data.aws_iam_policy_document.cluster_secrets_trust.json
 }
 
-resource "aws_iam_role_policy" "image_updater" {
-  name   = "read-image-updater-app-key"
-  role   = aws_iam_role.image_updater.id
-  policy = data.aws_iam_policy_document.image_updater.json
+resource "aws_iam_role_policy" "cluster_secrets" {
+  name   = "read-cluster-secrets"
+  role   = aws_iam_role.cluster_secrets.id
+  policy = data.aws_iam_policy_document.cluster_secrets.json
 }
 
 # The role CI applies with. Terraform manages the credential it runs as, so a
@@ -307,7 +315,7 @@ data "aws_iam_policy_document" "terraform" {
       aws_iam_openid_connect_provider.github.arn,
       aws_iam_role.claude_code.arn,
       aws_iam_role.terraform.arn,
-      "arn:aws:iam::${local.aws_account_id}:role/${local.image_updater_role_name}",
+      "arn:aws:iam::${local.aws_account_id}:role/${local.cluster_secrets_role_name}",
       ], [
       for name in values(local.github_app_role_names) :
       "arn:aws:iam::${local.aws_account_id}:role/${name}"

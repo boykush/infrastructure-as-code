@@ -36,6 +36,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **version と auto_upgrade**: `version` は `digitalocean_kubernetes_versions` data source が返す「pin した minor の最新 patch」。`auto_upgrade = true` なので patch 適用は DO がメンテナンス窓で行い、Terraform 側は追従するだけ。minor を上げる操作は `kubernetes_version_prefix` の編集。
 - **新規作成できるのは最新3 minor だけ**（窓を過ぎた version は既存クラスタは動き続けるが新規作成不可）。現行は 1.34 / 1.35 / 1.36。手元での確認は `doctl kubernetes options versions`。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
+- **pod から AWS へは federation できない**。ServiceAccount token の issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、DOKS では変えられず、AWS から検証できない。External Secrets Operator を鍵なしで組めないのはこのためで、Secret は Cluster Secrets workflow が外から押し込む。
 - `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
 
 ## Argo CD
@@ -71,7 +72,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **トークンに改行を混ぜない**。`::add-mask::` は行単位に効くので、改行が残ると**2行目が public repo のログに出る**——一度踏んだ。`mise run claude:token` が空白を落とすのはこのため。
 - **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。
 - **`sub` クレームは repo の作成時期で形式が違う**。2026-07-15 以降に作られた repo は ID 入り（`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`）、それ以前は名前だけで opt-in 待ち。`local.claude_code_subjects` / `local.this_repository_subjects` / `local.github_app_subjects` が両形式を並べているのはこのため。**片方に削ってはいけない**——`claude_code_repositories` には両形式の repo が実際に混在している。
-- **`local.account_id` は使えない**。`cloudflare.tf` が同名の local を持っている（Cloudflare の account id）。AWS 側は `local.aws_account_id`。この repo 自身の `sub` は `local.this_repository_subjects`——terraform の role と Image Updater の role が共有する。
+- **`local.account_id` は使えない**。`cloudflare.tf` が同名の local を持っている（Cloudflare の account id）。AWS 側は `local.aws_account_id`。この repo 自身の `sub` は `local.this_repository_subjects`——terraform の role と Cluster Secrets の role が共有する。
 - **GitHub App の private key も Terraform には通さない**。`key_material_base64` を渡すと HCP の state に載るので、Terraform が作るのは material の無い空の key（origin EXTERNAL、`PendingImport`）と role だけ。中身は `mise run app:key-import` が CLI で入れる。**material は key ごとに1度きり**なので、鍵を替えるなら `-replace` で key を作り直す（alias が向き先を吸収するので repo 側は無変更）。
 - **role は App ごとに分ける**。`kms:Sign` を1つの role にまとめると、renovate-runner の run が全 repo を管理する App として署名できてしまう。App と repo の対応は `var.github_apps` だけが持つ。
 - **CI に `kms:Sign` / `kms:ImportKeyMaterial` / `kms:PutKeyPolicy` を足さない**。`github-actions-terraform` は key を作れるが使えない、というのがこの構成の要で、どれか1つ足すと成立しなくなる。

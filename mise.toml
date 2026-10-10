@@ -66,25 +66,36 @@ aws ssm put-parameter \
 echo "wrote /claude-code/oauth-token"
 """
 
-# Same shape as claude:token, for the one app key KMS cannot hold. Paste the PEM
-# GitHub generated, then Ctrl-D; `gh workflow run image-updater-credential.yml`
-# is what carries it from there into the cluster.
-[tasks."image-updater:key"]
-description = "Write the Image Updater app's private key to Parameter Store (paste the PEM on stdin)"
-run = """
+# Every Secret the cluster holds is written here, one parameter per key, and
+# `gh workflow run cluster-secrets.yml` carries them in. Paste the value, then
+# Ctrl-D. The line break a paste ends with is dropped, as a token must not
+# carry one; a PEM keeps the ones inside it and loses nothing by it.
+[tasks."cluster:secret"]
+description = "Write one key of a cluster Secret to Parameter Store (paste the value on stdin)"
+usage = '''
+arg "<namespace>" help="Namespace the Secret belongs to"
+arg "<secret>" help="Name of the Secret"
+arg "<key>" help="Key within the Secret"
+'''
+run = '''
 set -euo pipefail
 umask 077
-key_file="$(mktemp)"
-trap 'rm -f "$key_file"' EXIT
-cat > "$key_file"
+value_file="$(mktemp)"
+trap 'rm -f "$value_file"' EXIT
+printf '%s' "$(cat)" > "$value_file"
+if [ ! -s "$value_file" ]; then
+  echo "nothing on stdin: paste the value, then Ctrl-D" >&2
+  exit 1
+fi
+name="/cluster-secrets/${usage_namespace}/${usage_secret}/${usage_key}"
 aws ssm put-parameter \
   --region ap-northeast-1 \
-  --name /image-updater/app-private-key \
+  --name "$name" \
   --type SecureString \
   --overwrite \
-  --value "file://$key_file" > /dev/null
-echo "wrote /image-updater/app-private-key"
-"""
+  --value "file://$value_file" > /dev/null
+echo "wrote $name"
+'''
 
 # KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で
 # 1217 バイト）が包めないので AES-KWP が要る。macOS の LibreSSL はそれを持たないので node の
