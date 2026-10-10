@@ -43,6 +43,12 @@ app:
             - url: https://app.terraform.io/app/boykush/workspaces
               label: HCP Terraform
               icon: dashboard
+            - url: https://cloud.digitalocean.com/kubernetes/clusters
+              label: DigitalOcean
+              icon: dashboard
+            - url: https://dash.cloudflare.com
+              label: Cloudflare
+              icon: dashboard
             - url: https://github.com/boykush?tab=repositories
               label: GitHub
               icon: github
