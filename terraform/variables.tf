@@ -216,10 +216,6 @@ variable "github_apps" {
     # wakes executes that branch's own copy of the workflows, so trusting every
     # ref hands the signature to whatever can push a branch there.
     main_only = optional(bool, false)
-    # Trusts only runs a pull request wakes, for an App that exists to read what
-    # another App writes: a plan has no business signing on main, and a push to
-    # some other branch is neither.
-    pull_request_only = optional(bool, false)
   }))
   description = "GitHub Apps whose private key is imported into KMS, each with the repositories whose workflows may sign as it. What a repository is trusted with is the signature, never the key."
 
@@ -227,14 +223,6 @@ variable "github_apps" {
     {
       name         = "terraform-ci"
       repositories = ["github-management"]
-    },
-    # github-management's pull-request plans. A plan runs the branch's own
-    # copy of the workflow and the provider, so it signs as an App that can
-    # read what terraform-ci manages and write nothing.
-    {
-      name              = "terraform-plan"
-      repositories      = ["github-management"]
-      pull_request_only = true
     },
     {
       name         = "renovate"
@@ -264,10 +252,5 @@ variable "github_apps" {
   validation {
     condition     = length(var.github_apps) == length(distinct([for app in var.github_apps : app.name]))
     error_message = "Each app name can appear once: it names the key, its alias and the role."
-  }
-
-  validation {
-    condition     = alltrue([for app in var.github_apps : !(app.main_only && app.pull_request_only)])
-    error_message = "An app can be main_only or pull_request_only, not both: together they trust no run at all."
   }
 }

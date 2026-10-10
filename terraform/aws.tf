@@ -51,11 +51,7 @@ locals {
   # What a trusted sub ends in after the repository. A run of main carries its
   # ref; one a pull request wakes carries :pull_request, and a push to any other
   # branch that branch's ref, so neither matches a main-only app.
-  github_app_refs = {
-    for app in var.github_apps : app.name => (
-      app.main_only ? "ref:refs/heads/main" : app.pull_request_only ? "pull_request" : "*"
-    )
-  }
+  github_app_refs = { for app in var.github_apps : app.name => app.main_only ? "ref:refs/heads/main" : "*" }
 
   # Both spellings again, this time grouped by the app each repository may sign
   # as. A repository can appear under more than one app; the reverse — one role
