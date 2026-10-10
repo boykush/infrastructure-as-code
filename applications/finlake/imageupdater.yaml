@@ -1,0 +1,30 @@
+# What Image Updater follows for finlake. A CR of its own, like backstage's, so
+# the app's directory holds everything about it; it sits in argocd because the
+# controller watches only there.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: finlake
+  namespace: argocd
+spec:
+  writeBackConfig:
+    method: git:secret:image-updater-git-creds
+    gitConfig:
+      branch: main
+      # Resolves to the kustomization.yaml at the Application's path.
+      writeBackTarget: kustomization
+  applicationRefs:
+    - namePattern: finlake
+      images:
+        - alias: finlake
+          imageName: ghcr.io/boykush/finlake:main
+          commonUpdateSettings:
+            # The tag never moves off "main", so only the digest tells a rebuild apart.
+            updateStrategy: digest
+            # Image Updater only updates images it sees running in the
+            # Application's status. A CronJob has no pod most of the day, so the
+            # image may be missing from there; force keeps the digest moving.
+            forceUpdate: true
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/boykush/finlake
