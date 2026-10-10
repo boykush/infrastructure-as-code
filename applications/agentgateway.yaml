@@ -1,0 +1,25 @@
+# agentgateway: a proxy that reads MCP, for the traffic to the MCP servers. Its
+# own Application because, like the tunnel, it is plumbing those servers share
+# rather than part of any one of them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agentgateway
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/agentgateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agentgateway
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
