@@ -147,22 +147,33 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 ### finlake
 
-[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。取り込み（ingest → transform）は、マネーフォワード ME の Cookie があるオーナーの手元で流して R2 に直接書く（finlake の README の「取り込み」）。クラスタに載るのは結果を配る MCP サーバーだけで、まだ足していないので Application `finlake`（`applications/finlake/`、namespace `finlake`）は空。
+[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。オーナーがマネーフォワード ME の画面から落とした CSV を R2 の raw 層に置き、クラスタの CronJob `sync`（`applications/finlake/sync-cronjob.yaml`、namespace `finlake`）がそれを product の明細に変換する。置き方の決まり（フォルダ名、1か月に1ファイル）は finlake の README の「データレイク」が持つ。結果を配る MCP サーバーはまだ足していない。
 
 データの置き場は Cloudflare R2 のバケット `finlake`（`terraform/r2.tf`）。量が月に KB 単位で無料枠に収まり、作るのに要るのが既存の Cloudflare の API トークンだけなので、DO Spaces（月 $5 の定額、CI に全バケットを触れる S3 キーが要る）ではなくこちらにした。
 
-#### Secret
-
-クラスタが R2 を読むためのトークンは kubectl で Secret にし、commit しない。書き込むのは手元の取り込みだけなので、クラスタには読み取りしか渡さない。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
-
-ダッシュボードの R2 → Manage API tokens で、権限 Object Read、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
+`sync` が走るのは月初の間だけ（schedule は manifest）。それ以外の日に置いたとき、置いてすぐ反映したいときは手で流す。変換が要る月が無ければ何もしないので、何度流してもよい。
 
 ```sh
-mise exec -- kubectl -n finlake create secret generic finlake-r2 \
+mise exec -- kubectl -n finlake create job --from=cronjob/sync "sync-manual-$(date +%s)"
+mise exec -- kubectl -n finlake logs -f job/<上で出た名前>
+```
+
+置き間違い（月のフォルダに CSV が2つ、明細がフォルダの月と違う、フォルダ名が `month=YYYY-MM` でない）があると、その月を変換せずに Job が失敗する。ログに月と理由が出るので、R2 の側を直して流し直す。
+
+#### Secret
+
+`sync` が R2 を読み書きするためのトークンは kubectl で Secret にし、commit しない。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
+
+ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。MCP サーバーを足すときは、読み取りだけのトークンを別に作って別の Secret にする。
+
+```sh
+mise exec -- kubectl -n finlake create secret generic finlake-r2-sync \
   --from-literal=FINLAKE_S3_ENDPOINT='<account_id>.r2.cloudflarestorage.com' \
   --from-literal=FINLAKE_S3_ACCESS_KEY_ID='<access key id>' \
   --from-literal=FINLAKE_S3_SECRET_ACCESS_KEY='<secret access key>'
 ```
+
+Secret ができるまで `sync` の Pod は `CreateContainerConfigError` で止まる。
 
 ### OpenTelemetry Collector と Jaeger
 
