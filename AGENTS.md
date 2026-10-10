@@ -47,7 +47,9 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。
-- **finlake の MCP はここに居ない**（`applications/finlake/`）。非公開のデータで、サーバーにログインが無いので、agentgateway に route を足さない——無認証のサーバーと同じ入口に載せると、クラスタ内から Access を通らずに届く。鍵は Access（`terraform/access.tf`）と NetworkPolicy（`applications/finlake/networkpolicy.yaml`）だけで、どちらかを緩めると家計がそのまま読める。
+- **非公開の MCP（finlake・jaeger）は、route の `jwtAuth` を外さない**。Access は発行するだけで、検証するのは agentgateway——tunnel から来たことを信用しないので、Access を通らないクラスタ内の呼び出しもここで落ちる。サーバーにログインは無く、鍵はこの `jwtAuth` と、agentgateway 以外を止める各サーバーの NetworkPolicy だけ。どちらかを緩めると家計や trace がそのまま読める。
+- **非公開の MCP を足すときは、Access application `mcp` の `destinations` に載せる**（`terraform/access.tf`）。別の application を作ると AUD tag が別になり、agentgateway の `audiences` と合わなくなる。
+- **CI からの入口（`<name>-mcp-ci.<ドメイン>`）は Access の外に居る**。workflow はログインできないので、GitHub が run に発行する OIDC token を agentgateway が直に検証する。誰を通すかは route の `authorization` が名指しする repo だけで決まるので、`repository_owner` のような広い条件に替えない。
 - **Cloudflare 側の HTTP Host Header 書き換えは使わない**。Deployment が渡す `--allowed-host` が入った時点で不要になった、一時期の回避策。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
 - **tunnel の先は agentgateway で、サーバーではない**。agentgateway は後ろへ送るとき Host をクラスタ内の Service 名にするので、Host を検証するサーバー（scraps）はその名前も許可しておく——無いと 403 になる。
@@ -73,7 +75,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## テレメトリー（`applications/otel-collector/`・`applications/jaeger/`）
 
 - **workload に教える送り先は Collector だけ**。後段（今は Jaeger）の名前を workload の manifest やアプリの repo に書かない。後段を替えるときに触るのを Collector の `exporters` 1箇所にするための分離で、Jaeger 側の NetworkPolicy が Collector 以外からの書き込みを落として守っている。
-- **Jaeger の query のポートに届く経路を広げない**。UI・query API・MCP が同じポートに居て、Jaeger にログインは無い。鍵は外からの Access（`terraform/access.tf`）と、クラスタ内で cloudflared 以外を止める NetworkPolicy（`applications/jaeger/networkpolicy.yaml`）だけで、span には MCP の呼び出し元が訊いた内容が載りうる。
+- **Jaeger の query のポートに届く経路を広げない**。UI・query API・MCP が同じポートに居て、Jaeger にログインは無い。入れるのは Access（`terraform/access.tf`）を通った cloudflared と、token を検証した agentgateway（MCP の path だけを出す）の2つで、NetworkPolicy（`applications/jaeger/networkpolicy.yaml`）がそれ以外を止める。span には MCP の呼び出し元が訊いた内容が載りうる。
 
 ## AWS の認証情報（`terraform/aws.tf`）
 

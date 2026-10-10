@@ -46,7 +46,20 @@ catalog を引く MCP サーバーは Backstage が出すので、この Applica
 
 エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
 
-**これらの MCP は無認証で公開している**——wiki も adr も内容は元から公開で、scraps と adi の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit や Access を被せられる（クラスタ側の manifest は変更不要）。
+**wiki と adr の MCP は無認証で公開している**——どちらも内容は元から公開で、scraps と adi の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit を被せるか、下の非公開の MCP と同じ形にする。
+
+#### 非公開の MCP の認証
+
+finlake と Jaeger の MCP は同じ agentgateway の後ろに居るが、route が token を要求する（`applications/agentgateway/config.yaml` の `jwtAuth`）。入口は2つある。
+
+**人が使うエージェント**は Access を通る。エージェントは GitHub へのリダイレクトを辿れないので、Access の Managed OAuth（`terraform/access.tf` の `oauth_configuration`）が入口になる——Access が 401 で OAuth の metadata を返し、GitHub ログインと owner policy を通した後に token を出す。通した request には Access が署名した JWT が `Cf-Access-Jwt-Assertion` ヘッダで付き、agentgateway はそれを Access の公開鍵と application の AUD tag で検証する。**Access は発行、agentgateway は検証**という分担で、Access を通らないクラスタ内からの呼び出しは JWT を持たないので agentgateway が落とす。`oauth_configuration` を変えた直後は数分待つ——反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
+
+**workflow** はログインできないので、Access の外に別のホスト名（`<name>-mcp-ci.<ドメイン>`。今は Jaeger だけ）を持つ。GitHub が run に発行する OIDC token を、そのホスト名を audience にして取り、`Authorization: Bearer` で渡す。agentgateway が GitHub の公開鍵で検証し、route の `authorization` が名指しする repo だけを通す。secret は配らない。job には `id-token: write` が要る。
+
+```sh
+curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://jaeger-mcp-ci.boykush.com" | jq -r .value
+```
 
 #### MCP サーバーを増やす
 
@@ -207,9 +220,9 @@ mise exec -- kubectl -n finlake rollout restart deployment/mcp
 
 #### MCP
 
-`https://finlake-mcp.boykush.com/mcp`。家計は非公開で、finlake の MCP サーバー自身はログインを持たないので、Jaeger の MCP と同じく Access（`terraform/access.tf`）の内側に置く。エージェントは初回だけ `/mcp` から認証する。tool の一覧とクライアント側の設定は finlake の README が持つ。
+`https://finlake-mcp.boykush.com/mcp`。家計は非公開で、finlake の MCP サーバー自身はログインを持たないので、認証は前段が担う（→ [非公開の MCP の認証](#非公開の-mcp-の認証)）。エージェントは初回だけ `/mcp` から認証する。tool の一覧とクライアント側の設定は finlake の README が持つ。
 
-他の MCP サーバーと違って agentgateway を通さず、tunnel から直に届く。agentgateway は無認証のサーバーと同じ入口なので、挟むとクラスタ内から Access を通らずに届く道ができるため。クラスタ内では NetworkPolicy（`applications/finlake/networkpolicy.yaml`）が cloudflared 以外を止める。
+クラスタ内では NetworkPolicy（`applications/finlake/networkpolicy.yaml`）が agentgateway 以外を止める。
 
 port-forward でも入れる。tunnel を疑うときの切り分けに。
 
@@ -225,9 +238,9 @@ workload のテレメトリーは OpenTelemetry Collector（`applications/otel-c
 
 Jaeger の UI は `https://jaeger.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Jaeger 自身のログインは無い。
 
-エージェントからは MCP でトレースを引ける。UI と同じポートの `/api/ai/mcp/` に出ていて、同じ Access の内側にある。エージェントは GitHub へのリダイレクトを辿れないので、Access の Managed OAuth（`terraform/access.tf` の `oauth_configuration`）が代わりの入口になる——Access が 401 で OAuth の metadata を返し、同じ GitHub ログインと owner policy を通した後に token を出す。Jaeger 自身には MCP だけに掛けられる認証が無い。
+エージェントからは MCP でトレースを引ける。Jaeger は UI と同じポートの `/api/ai/mcp/` に出すが、MCP だけに掛けられる認証を持たないので、外へは agentgateway が `https://jaeger-mcp.boykush.com/mcp` として出す（→ [非公開の MCP の認証](#非公開の-mcp-の認証)）。UI のホスト名からは MCP に入れない。
 
-この repo で動くエージェントの接続先は `.mcp.json` にあり、初回だけ `/mcp` から認証する。`oauth_configuration` を変えた直後は数分待つ——反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
+この repo で動くエージェントの接続先は `.mcp.json` にあり、初回だけ `/mcp` から認証する。
 
 port-forward でも入れる。tunnel を疑うときの切り分けに。UI は `http://localhost:16686`、MCP はその `/api/ai/mcp/`。
 

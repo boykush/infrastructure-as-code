@@ -37,3 +37,58 @@ binds:
                     - name: wiki
                       mcp:
                         host: http://wiki.remote-mcp-server.svc.cluster.local:1113/mcp
+          # The two below are not public. Access runs the login and passes the
+          # request on with a JWT it signed; checking that here, rather than
+          # trusting the tunnel, is what refuses a caller inside the cluster.
+          # The audience is the AUD tag of the one Access application both
+          # hostnames belong to (terraform/access.tf).
+          - hostnames: [finlake-mcp.boykush.com]
+            policies:
+              jwtAuth: &access
+                mode: strict
+                issuer: https://boykush-zt.cloudflareaccess.com
+                audiences: [f57b5477c6b62558247a5abf88d0d3f6e3d3952077a62cf543fb08e2a610db4c]
+                jwks:
+                  url: https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/certs
+                location:
+                  header:
+                    name: Cf-Access-Jwt-Assertion
+            backends:
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: finlake
+                      mcp:
+                        host: http://mcp.finlake.svc.cluster.local:8080/mcp
+          - hostnames: [jaeger-mcp.boykush.com]
+            policies:
+              jwtAuth: *access
+            backends:
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: jaeger
+                      mcp:
+                        host: http://jaeger.jaeger.svc.cluster.local:16686/api/ai/mcp/
+          # The way in for a workflow, which cannot log in to Access. It shows
+          # the OIDC token GitHub mints for the run, asked for with this
+          # hostname as its audience, and the rule names the repositories let
+          # in. Only the traces: nothing in CI reads finlake.
+          - hostnames: [jaeger-mcp-ci.boykush.com]
+            policies:
+              jwtAuth:
+                mode: strict
+                issuer: https://token.actions.githubusercontent.com
+                audiences: [https://jaeger-mcp-ci.boykush.com]
+                jwks:
+                  url: https://token.actions.githubusercontent.com/.well-known/jwks
+              authorization:
+                rules:
+                  - allow: jwt.repository == "boykush/infrastructure-as-code"
+            backends:
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: jaeger
+                      mcp:
+                        host: http://jaeger.jaeger.svc.cluster.local:16686/api/ai/mcp/

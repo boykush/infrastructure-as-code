@@ -57,16 +57,39 @@ resource "cloudflare_zero_trust_access_application" "argocd" {
   }]
 }
 
-# Jaeger's UI, behind the same gate, and with it the query API and the MCP
-# endpoint on the same port. Jaeger has no login at all, so this is the only
-# lock on reading traces from outside, and a span can carry what a caller asked
-# an MCP server.
+# Jaeger's UI, behind the same gate, and with it the query API on the same
+# port. Jaeger has no login at all, so this is the only lock on reading traces
+# from a browser, and a span can carry what a caller asked an MCP server. The
+# MCP endpoint on that port is not served here: agents reach it through
+# agentgateway, under the application below.
 resource "cloudflare_zero_trust_access_application" "jaeger" {
   account_id                = local.account_id
   name                      = "jaeger"
   type                      = "self_hosted"
   domain                    = "jaeger.${var.domain}"
   destinations              = [{ type = "public", uri = "jaeger.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+}
+
+# The MCP servers that are not public. Access only issues here: it runs the
+# login and hands the request on with a signed JWT, and agentgateway is what
+# checks it (applications/agentgateway/config.yaml), so a caller inside the
+# cluster, which never passes Access, is refused as well. One application for
+# all of them, so that its AUD tag is the one audience agentgateway names.
+resource "cloudflare_zero_trust_access_application" "mcp" {
+  account_id = local.account_id
+  name       = "mcp"
+  type       = "self_hosted"
+  domain     = "finlake-mcp.${var.domain}"
+  destinations = [
+    { type = "public", uri = "finlake-mcp.${var.domain}" },
+    { type = "public", uri = "jaeger-mcp.${var.domain}" },
+  ]
   allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
   auto_redirect_to_identity = true
   policies = [{
@@ -87,29 +110,12 @@ resource "cloudflare_zero_trust_access_application" "jaeger" {
   }
 }
 
-# finlake's MCP server: household money, and the server has no login of its
-# own, so this is the only lock from outside. There is no UI behind it; the
-# clients are agents, which come in through the same OAuth as Jaeger's MCP.
-resource "cloudflare_zero_trust_access_application" "finlake_mcp" {
-  account_id                = local.account_id
-  name                      = "finlake-mcp"
-  type                      = "self_hosted"
-  domain                    = "finlake-mcp.${var.domain}"
-  destinations              = [{ type = "public", uri = "finlake-mcp.${var.domain}" }]
-  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
-  auto_redirect_to_identity = true
-  policies = [{
-    id         = cloudflare_zero_trust_access_policy.owner.id
-    precedence = 1
-  }]
-
-  oauth_configuration = {
-    enabled = true
-    dynamic_client_registration = {
-      enabled                = true
-      allow_any_on_localhost = true
-    }
-  }
+# Keeps the application, and so its AUD tag, through the rename: a replacement
+# would get a new tag, and agentgateway would refuse every token until its
+# config followed.
+moved {
+  from = cloudflare_zero_trust_access_application.finlake_mcp
+  to   = cloudflare_zero_trust_access_application.mcp
 }
 
 # The one path that answers without a login: the MCP server coding agents read

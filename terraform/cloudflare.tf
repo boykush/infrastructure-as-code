@@ -51,7 +51,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "this" {
     cloudflare_zero_trust_access_application.backstage,
     cloudflare_zero_trust_access_application.argocd,
     cloudflare_zero_trust_access_application.jaeger,
-    cloudflare_zero_trust_access_application.finlake_mcp,
+    cloudflare_zero_trust_access_application.mcp,
   ]
 }
 
