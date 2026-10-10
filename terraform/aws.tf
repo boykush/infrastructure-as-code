@@ -12,14 +12,18 @@ locals {
   # knows the repository it is checked out from, so it is written out.
   terraform_repository = "infrastructure-as-code"
 
-  claude_code_parameter_arn   = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
-  image_updater_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.image_updater_parameter_name}"
+  claude_code_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
+
+  # Both are paths, so what a policy names is everything under them.
+  cluster_secrets_parameters_arn             = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.cluster_secrets_parameter_path}/*"
+  external_secrets_credential_parameters_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.external_secrets_credential_parameter_path}/*"
 
   # The roles below are named here rather than read off the resources, because
   # the policy CI applies with has to name them before they exist — see the
   # ordering note there. Same construction as the parameter ARNs above.
-  image_updater_role_name = "github-actions-image-updater"
-  github_app_role_names   = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
+  external_secrets_role_name = "github-actions-external-secrets"
+  external_secrets_user_name = "external-secrets"
+  github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
   # 2026-07-15, and for older ones once they opt in. Both spellings are listed
@@ -215,11 +219,40 @@ resource "aws_iam_role_policy" "github_app" {
   policy = data.aws_iam_policy_document.github_app[each.key].json
 }
 
-# The one app KMS cannot hold: Argo CD Image Updater signs its own JWTs inside
-# the cluster, so what it is given has to be the PEM. Parameter Store keeps the
-# single copy and the credential workflow reads it with this repository's OIDC
-# identity, which is what takes it out of a repository secret.
-data "aws_iam_policy_document" "image_updater_trust" {
+# What External Secrets Operator reads Parameter Store as. A user with an access
+# key, the one long-lived credential here, because nothing shorter is on offer:
+# the cluster signs its service account tokens as an in-cluster name
+# (kubernetes.default.svc.cluster.local) that AWS cannot reach to verify, so no
+# pod can assume a role. All the key opens is reading the cluster's own Secrets.
+resource "aws_iam_user" "external_secrets" {
+  depends_on = [aws_iam_role_policy.terraform]
+
+  name = local.external_secrets_user_name
+}
+
+# The parameters are no more resources here than the Claude Code token is, and
+# for the same reason. Among them is the one app key KMS cannot hold: Argo CD
+# Image Updater signs its own JWTs inside the cluster, so it needs the PEM.
+data "aws_iam_policy_document" "external_secrets" {
+  statement {
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [local.cluster_secrets_parameters_arn]
+  }
+}
+
+resource "aws_iam_user_policy" "external_secrets" {
+  name   = "read-cluster-secrets"
+  user   = aws_iam_user.external_secrets.name
+  policy = data.aws_iam_policy_document.external_secrets.json
+}
+
+# The access key is not a resource either: aws_iam_access_key would put the
+# secret half in HCP state. `mise run external-secrets:key` mints it into
+# Parameter Store, and a workflow of this repository carries it into the
+# cluster with its own OIDC identity — the one Secret the operator cannot
+# fetch for itself.
+data "aws_iam_policy_document" "external_secrets_credential_trust" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -243,26 +276,26 @@ data "aws_iam_policy_document" "image_updater_trust" {
   }
 }
 
-data "aws_iam_policy_document" "image_updater" {
+data "aws_iam_policy_document" "external_secrets_credential" {
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [local.image_updater_parameter_arn]
+    resources = [local.external_secrets_credential_parameters_arn]
   }
 }
 
-resource "aws_iam_role" "image_updater" {
+resource "aws_iam_role" "external_secrets_credential" {
   depends_on = [aws_iam_role_policy.terraform]
 
-  name               = local.image_updater_role_name
-  description        = "Read the Image Updater app's private key from Parameter Store, for this repository's credential workflow"
-  assume_role_policy = data.aws_iam_policy_document.image_updater_trust.json
+  name               = local.external_secrets_role_name
+  description        = "Read the operator's access key from Parameter Store, for this repository's External Secrets Credential workflow"
+  assume_role_policy = data.aws_iam_policy_document.external_secrets_credential_trust.json
 }
 
-resource "aws_iam_role_policy" "image_updater" {
-  name   = "read-image-updater-app-key"
-  role   = aws_iam_role.image_updater.id
-  policy = data.aws_iam_policy_document.image_updater.json
+resource "aws_iam_role_policy" "external_secrets_credential" {
+  name   = "read-external-secrets-credential"
+  role   = aws_iam_role.external_secrets_credential.id
+  policy = data.aws_iam_policy_document.external_secrets_credential.json
 }
 
 # The role CI applies with. Terraform manages the credential it runs as, so a
@@ -300,14 +333,15 @@ data "aws_iam_policy_document" "terraform" {
     effect  = "Allow"
     actions = ["iam:*"]
 
-    # The roles this apply is about to create are named as strings: reading the
-    # ARNs off the resources would order this policy after them, and creating
-    # them is exactly what it grants. Everything else is an existing resource.
+    # The identities this apply is about to create are named as strings:
+    # reading the ARNs off the resources would order this policy after them, and
+    # creating them is exactly what it grants. The rest are existing resources.
     resources = concat([
       aws_iam_openid_connect_provider.github.arn,
       aws_iam_role.claude_code.arn,
       aws_iam_role.terraform.arn,
-      "arn:aws:iam::${local.aws_account_id}:role/${local.image_updater_role_name}",
+      "arn:aws:iam::${local.aws_account_id}:role/${local.external_secrets_role_name}",
+      "arn:aws:iam::${local.aws_account_id}:user/${local.external_secrets_user_name}",
       ], [
       for name in values(local.github_app_role_names) :
       "arn:aws:iam::${local.aws_account_id}:role/${name}"

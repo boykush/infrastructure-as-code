@@ -168,14 +168,25 @@ variable "claude_code_repositories" {
   }
 }
 
-variable "image_updater_parameter_name" {
+variable "cluster_secrets_parameter_path" {
   type        = string
-  description = "Parameter Store path holding the private key of the Image Updater GitHub App. The value is written with the CLI, never by Terraform."
-  default     = "/image-updater/app-private-key"
+  description = "Parameter Store path External Secrets Operator may read. Each ExternalSecret names its parameters in full; by convention they are <path>/<namespace>/<secret>/<key>. The values are written with the CLI, never by Terraform."
+  default     = "/cluster-secrets"
 
   validation {
-    condition     = startswith(var.image_updater_parameter_name, "/")
-    error_message = "image_updater_parameter_name must start with a slash: the ARN is built by appending it to :parameter."
+    condition     = startswith(var.cluster_secrets_parameter_path, "/") && !endswith(var.cluster_secrets_parameter_path, "/")
+    error_message = "cluster_secrets_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+  }
+}
+
+variable "external_secrets_credential_parameter_path" {
+  type        = string
+  description = "Parameter Store path holding the operator's own access key, as <path>/access-key-id and <path>/secret-access-key. Outside cluster_secrets_parameter_path, so the key cannot read itself."
+  default     = "/external-secrets"
+
+  validation {
+    condition     = startswith(var.external_secrets_credential_parameter_path, "/") && !endswith(var.external_secrets_credential_parameter_path, "/")
+    error_message = "external_secrets_credential_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
   }
 }
 

@@ -22,3 +22,11 @@ spec:
       prune: true
     syncOptions:
       - CreateNamespace=true
+    # The ExternalSecret here needs a CRD another Application installs, and on a
+    # new cluster the two sync in no order. A failed sync is otherwise final.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

@@ -69,11 +69,11 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 zone ID と account ID は `var.domain` から引いている。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
 
-token は credential なので git に入れず手元で Secret にする。tunnel を作り直したときだけやり直す。
+token は credential なので git に入れず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。tunnel を作り直したときだけやり直す。
 
 ```sh
-mise exec -- kubectl -n cloudflared create secret generic cloudflared-tunnel-token \
-  --from-literal=token="$(mise exec -- terraform -chdir=terraform output -raw tunnel_token)"
+mise exec -- terraform -chdir=terraform output -raw tunnel_token \
+  | mise run cluster:secret cloudflared cloudflared-tunnel-token token
 ```
 
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
@@ -90,23 +90,45 @@ mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 
 Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset のうち push を止めるもの（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id をそれらすべての bypass actor に足す（github-management の ruleset module が付ける）。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
 
-credential をクラスタに入れるのは Actions の **Image Updater Credential**（`workflow_dispatch`）。手元に DO の PAT を持たなくてよく、鍵を替えたときもクラスタを作り直したときも同じ workflow を回すだけで戻る。
-
-先に一度だけ App の3つの値を登録する。2つの id は識別子なので variable、**private key は GitHub に置かず Parameter Store に入れる**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
+credential は Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。Secret `argocd/image-updater-git-creds` の3つの key がそのまま App の3つの値で、**private key も GitHub には置かない**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
 
 ```sh
-gh variable set IMAGE_UPDATER_APP_ID --body 4703313
-gh variable set IMAGE_UPDATER_APP_INSTALLATION_ID --body <Installation ID>
-mise run image-updater:key < <app>.private-key.pem
-```
-
-```sh
-gh workflow run image-updater-credential.yml
+echo 4703313 | mise run cluster:secret argocd image-updater-git-creds githubAppID
+echo <Installation ID> | mise run cluster:secret argocd image-updater-git-creds githubAppInstallationID
+mise run cluster:secret argocd image-updater-git-creds githubAppPrivateKey < <app>.private-key.pem
 ```
 
 `githubAppID` に入れるのは **App ID**（数値）。GitHub は JWT の `iss` に Client ID を使うことを推奨しているが、Image Updater は base 10 で parse するので Client ID を入れると `invalid value in field githubAppID` で落ちる。ruleset の bypass actor に足す `actor_id` も同じ App ID。
 
 Secret ができるまで Image Updater は新しい digest を見つけても書き戻せない。Pod は落ちず、`could not get creds for repo` がログに出続けるだけなので、digest が動かないときはまずここを見る。
+
+### クラスタの Secret
+
+クラスタの Secret は kubectl で手作りしない。値は Parameter Store に置き、External Secrets Operator（`applications/external-secrets.yaml`）がクラスタの Secret に同期する。**どの parameter がどの Secret になるかは、使う app の隣の `ExternalSecret` が持つ**ので、ここには写さない。
+
+値を入れる・替えるのは parameter を書くだけで、手元に DO の PAT は要らない。クラスタを作り直したときも operator が全部戻す。
+
+```sh
+mise exec -- aws login
+mise run cluster:secret <namespace> <secret> <key>   # 値を貼って Ctrl-D
+```
+
+反映は `ExternalSecret` の `refreshInterval` ごと。Secret を env で読んでいる Pod は、Secret が変わっても再起動するまで古い値のまま動く。
+
+Secret を増やすときは、app の directory に `ExternalSecret` を足し、同じ名前の parameter を書く。operator が読めるのは `terraform/variables.tf` の `cluster_secrets_parameter_path` の下だけ。
+
+#### operator 自身の access key
+
+**operator は IAM の access key で Parameter Store を読む**——この基盤で唯一の長命な AWS の鍵。role にできないのは、DOKS が ServiceAccount token に書く issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、AWS から検証できないため。鍵が開くのは上の path の読み取りだけ（`terraform/aws.tf`）。
+
+この鍵だけは operator が自分で取れないので、Actions の **External Secrets Credential**（`workflow_dispatch`）が GitHub の OIDC で読んでクラスタに入れる。鍵を作るのも入れ替えるのも同じ2行で、クラスタを作り直したときは2行目だけ。
+
+```sh
+mise run external-secrets:key
+gh workflow run external-secrets-credential.yml
+```
+
+`external-secrets:key` は古い鍵を消してから新しい鍵を作る。workflow が届けるまで operator は同期できないが、クラスタにある Secret はそのまま残るので、止まるのは更新だけ。鍵の値は端末に出ない。
 
 ### UI
 
@@ -162,15 +184,14 @@ mise exec -- kubectl -n finlake logs -f job/<上で出た名前>
 
 #### Secret
 
-`sync` が R2 を読み書きするためのトークンは kubectl で Secret にし、commit しない。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
+`sync` が R2 を読み書きするためのトークンは commit せず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
 
 ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。MCP サーバーを足すときは、読み取りだけのトークンを別に作って別の Secret にする。
 
 ```sh
-mise exec -- kubectl -n finlake create secret generic finlake-r2-sync \
-  --from-literal=FINLAKE_S3_ENDPOINT='<account_id>.r2.cloudflarestorage.com' \
-  --from-literal=FINLAKE_S3_ACCESS_KEY_ID='<access key id>' \
-  --from-literal=FINLAKE_S3_SECRET_ACCESS_KEY='<secret access key>'
+mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ENDPOINT
+mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ACCESS_KEY_ID
+mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_SECRET_ACCESS_KEY
 ```
 
 Secret ができるまで `sync` の Pod は `CreateContainerConfigError` で止まる。
@@ -334,7 +355,7 @@ composite action も他の action と同じく **SHA で固定する**（zizmor 
 
 App の id（App ID / Client ID）はここに書かない。台帳は github-management の catalog（`resource:<app>-app` の annotation）で、run から引く写しを `github-app-token` が持つ。
 
-**`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、**Image Updater Credential** が OIDC で読んでクラスタの Secret にする。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
+**`image-updater` だけ KMS に入らない。** Image Updater はクラスタの中で自分で JWT に署名するので、渡すものが鍵そのものになる——KMS は鍵を返さないので、入れても使えない。この1つは SecureString（既定の `aws/ssm` キー）に置き、External Secrets Operator がクラスタの Secret にする（→ [クラスタの Secret](#クラスタの-secret)）。GitHub 側から鍵が消える点は同じで、違うのは鍵が AWS から出るかどうかだけ。
 
 費用は **key 1本 $1/月**（本数は `github_apps` の数）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
 
@@ -362,7 +383,7 @@ KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048b
 
 `KeyState: Enabled` が返れば入っている。**ここで手元の PEM を消す**——これ以降どこからも読み出せない値で、残しておくと KMS に入れた意味が減る。
 
-**手元に PEM が無ければ App の設定で作り直す。** repo secret に入れた鍵は読み出せないので、既に secret に置いてある App を移すときは必ずこうなる。App は private key を複数持てるので、**新しい鍵を生成 → KMS に入れる → workflow を差し替える → 古い鍵を App から revoke** の順なら、途中で動かない時間ができない。同じことが `image-updater` の鍵（`mise run image-updater:key`）にも当てはまる。
+**手元に PEM が無ければ App の設定で作り直す。** repo secret に入れた鍵は読み出せないので、既に secret に置いてある App を移すときは必ずこうなる。App は private key を複数持てるので、**新しい鍵を生成 → KMS に入れる → workflow を差し替える → 古い鍵を App から revoke** の順なら、途中で動かない時間ができない。同じことが `image-updater` の鍵（`mise run cluster:secret`）にも当てはまる。
 
 **4. App の id を台帳に足す。** github-management の `catalog/github-apps.yaml` に `<name>-app` の Resource を書き、annotation に App ID か Client ID を入れる。同じ値を boykush/workflows の `github-app-token` の表にも足す——workflow が渡すのは App 名だけなので、名前から id を引けないとトークンは出ない。
 
@@ -458,7 +479,7 @@ mise exec -- terraform plan
 | `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
 | `ACCESS_GITHUB_CLIENT_SECRET` | Access の GitHub ログインの client secret（`TF_VAR_access_github_client_secret`） |
 
-**Image Updater Credential**（`workflow_dispatch`）は Image Updater の GitHub App credential を Secret `argocd/image-updater-git-creds` として適用する。Secret を書くので push では起動しない。private key は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-image-updater` role）ので、この repo が持つ App の秘密はもう無い。
+**External Secrets Credential**（`workflow_dispatch`）は External Secrets Operator の access key を Secret `external-secrets/parameter-store-credentials` として適用する（→ [クラスタの Secret](#クラスタの-secret)）。Secret を書くので push では起動しない。鍵は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-external-secrets` role）。
 
 HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
 

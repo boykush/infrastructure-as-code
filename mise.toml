@@ -66,24 +66,61 @@ aws ssm put-parameter \
 echo "wrote /claude-code/oauth-token"
 """
 
-# Same shape as claude:token, for the one app key KMS cannot hold. Paste the PEM
-# GitHub generated, then Ctrl-D; `gh workflow run image-updater-credential.yml`
-# is what carries it from there into the cluster.
-[tasks."image-updater:key"]
-description = "Write the Image Updater app's private key to Parameter Store (paste the PEM on stdin)"
+# Where the value of a cluster Secret is written; the ExternalSecret that names
+# the parameter brings it in from there. Paste the value, then Ctrl-D. The line
+# break a paste ends with is dropped, as a token must not carry one; a PEM keeps
+# the ones inside it and loses nothing by it.
+[tasks."cluster:secret"]
+description = "Write one key of a cluster Secret to Parameter Store (paste the value on stdin)"
+usage = """
+arg "<namespace>" help="Namespace the Secret belongs to"
+arg "<secret>" help="Name of the Secret"
+arg "<key>" help="Key within the Secret"
+"""
 run = """
 set -euo pipefail
 umask 077
+value_file="$(mktemp)"
+trap 'rm -f "$value_file"' EXIT
+printf '%s' "$(cat)" > "$value_file"
+if [ ! -s "$value_file" ]; then
+  echo "nothing on stdin: paste the value, then Ctrl-D" >&2
+  exit 1
+fi
+name="/cluster-secrets/${usage_namespace}/${usage_secret}/${usage_key}"
+aws ssm put-parameter \\
+  --region ap-northeast-1 \\
+  --name "$name" \\
+  --type SecureString \\
+  --overwrite \\
+  --value "file://$value_file" > /dev/null
+echo "wrote $name"
+"""
+
+# The operator's own access key, which never passes through a terminal: IAM
+# hands it to a file and Parameter Store takes it from there. The old keys go
+# first, so the user never holds more than one; the cluster keeps the Secrets it
+# has and only stops refreshing until the workflow has carried the new key in.
+[tasks."external-secrets:key"]
+description = "Mint a new access key for External Secrets Operator into Parameter Store"
+run = """
+set -euo pipefail
+umask 077
+user=external-secrets
+for id in $(aws iam list-access-keys --user-name "$user" --query 'AccessKeyMetadata[].AccessKeyId' --output text); do
+  aws iam delete-access-key --user-name "$user" --access-key-id "$id"
+done
 key_file="$(mktemp)"
-trap 'rm -f "$key_file"' EXIT
-cat > "$key_file"
-aws ssm put-parameter \
-  --region ap-northeast-1 \
-  --name /image-updater/app-private-key \
-  --type SecureString \
-  --overwrite \
-  --value "file://$key_file" > /dev/null
-echo "wrote /image-updater/app-private-key"
+secret_file="$(mktemp)"
+trap 'rm -f "$key_file" "$secret_file"' EXIT
+aws iam create-access-key --user-name "$user" \\
+  --query '[AccessKey.AccessKeyId, AccessKey.SecretAccessKey]' --output text > "$key_file"
+printf '%s' "$(cut -f2 "$key_file")" > "$secret_file"
+aws ssm put-parameter --region ap-northeast-1 --name /external-secrets/access-key-id \\
+  --type SecureString --overwrite --value "$(cut -f1 "$key_file")" > /dev/null
+aws ssm put-parameter --region ap-northeast-1 --name /external-secrets/secret-access-key \\
+  --type SecureString --overwrite --value "file://$secret_file" > /dev/null
+echo "wrote /external-secrets/{access-key-id,secret-access-key}; now: gh workflow run external-secrets-credential.yml"
 """
 
 # KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で
