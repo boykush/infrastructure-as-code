@@ -9,7 +9,7 @@ resources:
 # Image Updater rewrites this entry, pinning the digest behind the moving `main`
 # tag. One image serves every finlake workload; the subcommand picks the role.
 images:
-- name: ghcr.io/boykush/finlake
-  newName: ghcr.io/boykush/finlake
-  newTag: main
-  digest: sha256:3bf7992bb015998f690d3a857086e67faa06e115b12cee3b806a17eed7c3e7fe
+  - name: ghcr.io/boykush/finlake
+    newName: ghcr.io/boykush/finlake
+    newTag: main
+    digest: sha256:a46902db3b9cd47a908d5c548107eb19c554235690d5608d3e6b2d71615640ab
