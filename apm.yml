@@ -9,4 +9,5 @@ dependencies:
   apm:
     - boykush/ai-plugins/plugins/adr-remote-mcp#a29aa379e5a893c66f0f9ed7a597490bc7841628
     - boykush/ai-plugins/plugins/catalog-remote-mcp#a29aa379e5a893c66f0f9ed7a597490bc7841628
+    - boykush/ai-plugins/plugins/jaeger-remote-mcp#29425edfbdcd3832defaaf720ac21744aee832fd
   mcp: []

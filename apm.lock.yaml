@@ -49,6 +49,16 @@ dependencies:
   is_virtual: true
   package_type: apm_package
   content_hash: sha256:85c6674a2220650d28eef0b3b833899f7cc44c1bfe54208584ae8078e4c814ac
+- repo_url: boykush/ai-plugins
+  name: jaeger-remote-mcp
+  host: github.com
+  resolved_commit: 29425edfbdcd3832defaaf720ac21744aee832fd
+  resolved_ref: 29425edfbdcd3832defaaf720ac21744aee832fd
+  version: 0.1.0
+  virtual_path: plugins/jaeger-remote-mcp
+  is_virtual: true
+  package_type: apm_package
+  content_hash: sha256:c82500129f7986849888e13f92df37ee4e50cb10d8d163e21a8d99c2a473f5fa
 deployments:
 - kind: project-relative
   target: claude
@@ -214,6 +224,15 @@ deployments:
   content_hash: null
 - kind: uri
   target: mcp
+  value: jaeger
+  runtime: claude
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: uri
+  target: mcp
   value: adr
   runtime: codex
   scope: project
@@ -230,9 +249,19 @@ deployments:
   - .
   active_owner: .
   content_hash: null
+- kind: uri
+  target: mcp
+  value: jaeger
+  runtime: codex
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
 mcp_servers:
 - adr
 - catalog
+- jaeger
 mcp_configs:
   adr:
     name: adr
@@ -244,13 +273,21 @@ mcp_configs:
     transport: http
     registry: false
     url: https://backstage.boykush.com/api/mcp-actions/v1/catalog
+  jaeger:
+    name: jaeger
+    transport: http
+    registry: false
+    url: https://jaeger.boykush.com/api/ai/mcp/
 mcp_target_servers:
   claude:
   - adr
   - catalog
+  - jaeger
   codex:
   - adr
   - catalog
+  - jaeger
 mcp_config_provenance:
   adr: adr-remote-mcp
   catalog: catalog-remote-mcp
+  jaeger: jaeger-remote-mcp
