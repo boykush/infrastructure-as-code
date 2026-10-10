@@ -6,6 +6,8 @@ kind: Application
 metadata:
   name: agentgateway
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
