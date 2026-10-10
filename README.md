@@ -38,8 +38,6 @@ MCP サーバーは `applications/remote-mcp-server/<name>/` にまとめて置�
 
 公開は Cloudflare Tunnel 経由（`applications/cloudflared/`）。`cloudflared` がクラスタ内から Cloudflare へ張った接続を traffic が下ってくるので、Service は ClusterIP のままで、ノードの public IP には何も開かない。DigitalOcean の Load Balancer（$12/月〜）が要らないのはこのため。TLS と公開ホスト名は Cloudflare 側が持つ。**tunnel は1本で全ホスト名を捌く**ので、サーバーが増えても `cloudflared` は増えない。
 
-tunnel の先は各サーバーではなく agentgateway（`applications/agentgateway/`）で、Host を見て各サーバーへ振り分ける。置いている理由は trace の ID の橋渡し——クライアントは ID を HTTP ヘッダで渡し、サーバーは MCP の規約どおりリクエストの `_meta` から読むので、agentgateway がその間を写す。
-
 この repo が持つのは公開エンドポイントまで（URL と MCP サーバー名は catalog の各 API の `definition`）。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る。
 
 catalog を引く MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
@@ -53,9 +51,8 @@ catalog を引く MCP サーバーは Backstage が出すので、この Applica
 1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く
 2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
 3. `applications/remote-mcp-server/imageupdater.yaml` の `images` に `alias` / `imageName` / `updateStrategy` を1つ足す
-4. `applications/agentgateway/config.yaml` に、公開ホスト名からそのサーバーへの route を1つ足す
-5. `terraform/variables.tf` の `tunnel_routes` に `subdomain` を1つ足す（`service` は agentgateway）
-6. [boykush/github-management](https://github.com/boykush/github-management) の catalog に API を足し、出す repo の component から `providesApis` を張る（書き方は `catalog/apis.yaml` の先頭）
+4. `terraform/variables.tf` の `tunnel_routes` に `subdomain` と `service` を1つ足す
+5. [boykush/github-management](https://github.com/boykush/github-management) の catalog に API を足し、出す repo の component から `providesApis` を張る（書き方は `catalog/apis.yaml` の先頭）
 
 #### tunnel の設定
 
@@ -63,8 +60,8 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 ```hcl
 {
-  subdomain = "backstage"
-  service   = "http://backstage.backstage.svc.cluster.local:7007"
+  subdomain = "wiki-mcp"
+  service   = "http://wiki.remote-mcp-server.svc.cluster.local:1113"
 }
 ```
 

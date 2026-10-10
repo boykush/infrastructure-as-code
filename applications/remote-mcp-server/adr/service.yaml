@@ -1,6 +1,6 @@
-# ClusterIP only: the internet reaches this through the Cloudflare Tunnel and
-# then agentgateway, both inside the cluster. agentgateway addresses this as
-# adr.remote-mcp-server.svc.cluster.local:8080.
+# ClusterIP only: the internet reaches this through the Cloudflare Tunnel that
+# `applications/cloudflared` runs, which connects from inside the cluster. The
+# tunnel addresses this as adr.remote-mcp-server.svc.cluster.local:8080.
 apiVersion: v1
 kind: Service
 metadata:
