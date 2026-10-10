@@ -1,7 +1,7 @@
 # boykush/finlake: household money data in an R2 bucket (terraform/r2.tf). The
-# ingest runs on the owner's machine, where the Money Forward session cookie
-# lives, and writes to R2 directly. What belongs here is only the MCP server that
-# serves the result, and it has not joined yet.
+# owner uploads Money Forward ME's CSVs to the raw layer of the bucket; the sync
+# CronJob here turns them into the product. The MCP server that serves the
+# product also belongs here, and has not joined yet.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,8 +20,5 @@ spec:
     automated:
       selfHeal: true
       prune: true
-      # Empty until the MCP server joins. Without this the auto-sync refuses to
-      # prune the last resources away, and the retired ingest CronJob would stay.
-      allowEmpty: true
     syncOptions:
       - CreateNamespace=true

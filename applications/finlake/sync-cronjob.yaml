@@ -1,0 +1,76 @@
+# Turns the Money Forward ME CSVs the owner uploads to the raw layer of the lake
+# (s3://finlake/raw/moneyforward/month=YYYY-MM/) into the product transactions.
+# It transforms only months whose raw CSV is newer than their product, so a run
+# with nothing new does nothing, and running it by hand is always safe.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sync
+spec:
+  # Daily over the first ten days: the month before is uploaded once its late
+  # entries (card statements, bank syncs) have landed, on no fixed day. Noon
+  # because the node is parked overnight and GitHub's schedule has brought it
+  # back up to three hours past 06:37. Later uploads are run by hand (README).
+  schedule: "17 12 1-10 * *"
+  timeZone: Asia/Tokyo
+  # A second run while one is still going would only race it to the same objects.
+  concurrencyPolicy: Forbid
+  # A schedule missed while the node was away is not worth running hours late;
+  # the next day's run picks the same files up.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # One retry, not the default six: a misplaced file fails the same way
+      # every time, and only a hiccup of R2 is worth a second try.
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sync
+              # Built in boykush/finlake. The tag here is only what the
+              # kustomization's images block matches on; what runs is the
+              # digest pinned there.
+              image: ghcr.io/boykush/finlake:main
+              args: ["sync"]
+              env:
+                - name: FINLAKE_LAKE_ROOT
+                  value: s3://finlake
+                # R2 speaks S3 with region "auto", addressed path-style.
+                - name: FINLAKE_S3_REGION
+                  value: auto
+                - name: FINLAKE_S3_URL_STYLE
+                  value: path
+              # FINLAKE_S3_ENDPOINT, FINLAKE_S3_ACCESS_KEY_ID and
+              # FINLAKE_S3_SECRET_ACCESS_KEY. The endpoint carries the Cloudflare
+              # account id, which this repository does not hold, so it travels
+              # with the token. This token writes; the MCP server gets its own.
+              envFrom:
+                - secretRef:
+                    name: finlake-r2-sync
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              # Each CSV is staged in a temp file before DuckDB reads it.
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
