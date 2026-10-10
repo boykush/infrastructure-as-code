@@ -57,13 +57,15 @@ variable "tunnel_routes" {
   description = "Public hostnames the tunnel serves, one per entry. service is the in-cluster URL cloudflared dials; it crosses namespaces, so it has to be the FQDN form http://<svc>.<namespace>.svc.cluster.local:<port>."
 
   default = [
+    # The MCP servers are reached through agentgateway, which tells them apart
+    # by Host (applications/agentgateway/config.yaml).
     {
       subdomain = "wiki-mcp"
-      service   = "http://wiki.remote-mcp-server.svc.cluster.local:1113"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
     {
       subdomain = "adr-mcp"
-      service   = "http://adr.remote-mcp-server.svc.cluster.local:8080"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
     {
       subdomain = "backstage"

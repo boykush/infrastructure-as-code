@@ -49,6 +49,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。
 - **Cloudflare 側の HTTP Host Header 書き換えは使わない**。Deployment が渡す `--allowed-host` が入った時点で不要になった、一時期の回避策。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
+- **tunnel の先は agentgateway で、サーバーではない**。agentgateway は後ろへ送るとき Host をクラスタ内の Service 名にするので、Host を検証するサーバー（scraps）はその名前も許可しておく——無いと 403 になる。
+- **agentgateway の 1 route には 1 サーバー**。複数を束ねると tool 名にサーバー名が前置され、クライアントから見える tool 名が変わる。
 - **この値は public repo の manifest に載る**。ドメインを git の外に置く方針より、回避策を消して契約を1箇所に書く方を取った結果。
 
 ## External Secrets（`applications/external-secrets/`）
@@ -60,7 +62,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Cloudflare Tunnel（`applications/cloudflared/`）
 
 - **NodePort は採らなかった**。DOKS の管理 firewall が自動で全開放し送信元 IP で絞れないので、TLS の無い無認証エンドポイントの置き場所にならない。
-- **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。
+- **アプリを増やすと2箇所**: `applications/` の manifest（scraps なら `--allowed-host` に公開ホスト名）と `terraform/variables.tf` の `tunnel_routes`。Terraform は manifest を読めないので、ホスト名はどうしても両方に書く。MCP サーバーはもう1箇所、agentgateway の route（`applications/agentgateway/config.yaml`）にも書く。
 - **Access で守るホスト名は、その application を `terraform/cloudflare.tf` の `depends_on` にも載せる**。載せないと、初回の apply で route が Access より先に開きうる。
 
 ## Backstage（`applications/backstage/`）
