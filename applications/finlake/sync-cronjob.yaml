@@ -51,7 +51,7 @@ spec:
               # FINLAKE_S3_ENDPOINT, FINLAKE_S3_ACCESS_KEY_ID and
               # FINLAKE_S3_SECRET_ACCESS_KEY. The endpoint carries the Cloudflare
               # account id, which this repository does not hold, so it travels
-              # with the token. This token writes; the MCP server gets its own.
+              # with the token. The MCP server shares this Secret.
               envFrom:
                 - secretRef:
                     name: finlake-r2-sync

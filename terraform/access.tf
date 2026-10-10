@@ -87,6 +87,31 @@ resource "cloudflare_zero_trust_access_application" "jaeger" {
   }
 }
 
+# finlake's MCP server: household money, and the server has no login of its
+# own, so this is the only lock from outside. There is no UI behind it; the
+# clients are agents, which come in through the same OAuth as Jaeger's MCP.
+resource "cloudflare_zero_trust_access_application" "finlake_mcp" {
+  account_id                = local.account_id
+  name                      = "finlake-mcp"
+  type                      = "self_hosted"
+  domain                    = "finlake-mcp.${var.domain}"
+  destinations              = [{ type = "public", uri = "finlake-mcp.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+
+  oauth_configuration = {
+    enabled = true
+    dynamic_client_registration = {
+      enabled                = true
+      allow_any_on_localhost = true
+    }
+  }
+}
+
 # The one path that answers without a login: the MCP server coding agents read
 # the catalog with. They have no identity for Access to check, and Backstage
 # cannot lift its auth policy for a single plugin, so the narrowing happens

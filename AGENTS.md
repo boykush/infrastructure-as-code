@@ -47,6 +47,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。
+- **finlake の MCP はここに居ない**（`applications/finlake/`）。非公開のデータで、サーバーにログインが無いので、agentgateway に route を足さない——無認証のサーバーと同じ入口に載せると、クラスタ内から Access を通らずに届く。鍵は Access（`terraform/access.tf`）と NetworkPolicy（`applications/finlake/networkpolicy.yaml`）だけで、どちらかを緩めると家計がそのまま読める。
 - **Cloudflare 側の HTTP Host Header 書き換えは使わない**。Deployment が渡す `--allowed-host` が入った時点で不要になった、一時期の回避策。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
 - **tunnel の先は agentgateway で、サーバーではない**。agentgateway は後ろへ送るとき Host をクラスタ内の Service 名にするので、Host を検証するサーバー（scraps）はその名前も許可しておく——無いと 403 になる。

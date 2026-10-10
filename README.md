@@ -172,7 +172,7 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 ### finlake
 
-[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。オーナーがマネーフォワード ME の画面から落とした CSV を R2 の raw 層に置き、クラスタの CronJob `sync`（`applications/finlake/sync-cronjob.yaml`、namespace `finlake`）がそれを product の明細に変換する。置き方の決まり（フォルダ名、1か月に1ファイル）は finlake の README の「データレイク」が持つ。結果を配る MCP サーバーはまだ足していない。
+[boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。オーナーがマネーフォワード ME の画面から落とした CSV を R2 の raw 層に置き、クラスタの CronJob `sync`（`applications/finlake/sync-cronjob.yaml`、namespace `finlake`）がそれを product の明細に変換する。置き方の決まり（フォルダ名、1か月に1ファイル）は finlake の README の「データレイク」が持つ。結果は同じ namespace の Deployment `mcp`（`applications/finlake/mcp-deployment.yaml`）が MCP で配る（→ [MCP](#mcp)）。
 
 データの置き場は Cloudflare R2 のバケット `finlake`（`terraform/r2.tf`）。量が月に KB 単位で無料枠に収まり、作るのに要るのが既存の Cloudflare の API トークンだけなので、DO Spaces（月 $5 の定額、CI に全バケットを触れる S3 キーが要る）ではなくこちらにした。
 
@@ -187,9 +187,9 @@ mise exec -- kubectl -n finlake logs -f job/<上で出た名前>
 
 #### Secret
 
-`sync` が R2 を読み書きするためのトークンは commit せず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
+`sync` と `mcp` が R2 に届くためのトークンは commit せず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。R2 のエンドポイントに入る account id は git のどこにも書かれていない（Terraform が domain から引く）ので、エンドポイントもトークンと一緒に Secret に置く。
 
-ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。MCP サーバーを足すときは、読み取りだけのトークンを別に作って別の Secret にする。
+ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を入れる。
 
 ```sh
 mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ENDPOINT
@@ -198,6 +198,24 @@ mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_SECRET_ACCESS_KEY
 ```
 
 Secret ができるまで `sync` の Pod は `CreateContainerConfigError` で止まる。
+
+`mcp` も同じ Secret で lake を読む。Secret を env で読むので、値を替えたら Pod を作り直す。
+
+```sh
+mise exec -- kubectl -n finlake rollout restart deployment/mcp
+```
+
+#### MCP
+
+`https://finlake-mcp.boykush.com/mcp`。家計は非公開で、finlake の MCP サーバー自身はログインを持たないので、Jaeger の MCP と同じく Access（`terraform/access.tf`）の内側に置く。エージェントは初回だけ `/mcp` から認証する。tool の一覧とクライアント側の設定は finlake の README が持つ。
+
+他の MCP サーバーと違って agentgateway を通さず、tunnel から直に届く。agentgateway は無認証のサーバーと同じ入口なので、挟むとクラスタ内から Access を通らずに届く道ができるため。クラスタ内では NetworkPolicy（`applications/finlake/networkpolicy.yaml`）が cloudflared 以外を止める。
+
+port-forward でも入れる。tunnel を疑うときの切り分けに。
+
+```sh
+mise exec -- kubectl -n finlake port-forward svc/mcp 8080:8080
+```
 
 ### OpenTelemetry Collector と Jaeger
 
