@@ -1,7 +1,8 @@
-# Jaeger has no login, so inside the cluster only the tunnel may read traces:
-# the MCP servers face the internet with no login of their own, and a span can
-# carry what a caller asked one of them. Probes from the node and port-forward,
-# which lands on localhost, are beyond a NetworkPolicy's reach.
+# Jaeger has no login, so inside the cluster two callers may read traces, each
+# with a check in front: the tunnel, past Access, for the UI, and agentgateway,
+# which checks a token, for the MCP endpoint. A span can carry what a caller
+# asked an MCP server. Probes from the node and port-forward, which lands on
+# localhost, are beyond a NetworkPolicy's reach.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -19,6 +20,12 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: cloudflared
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agentgateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agentgateway
       ports:
         - port: 16686
           protocol: TCP

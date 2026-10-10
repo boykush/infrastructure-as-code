@@ -79,11 +79,21 @@ variable "tunnel_routes" {
       subdomain = "jaeger"
       service   = "http://jaeger.jaeger.svc.cluster.local:16686"
     },
-    # An MCP server, but not through agentgateway: it is behind Access, and its
-    # NetworkPolicy lets only the tunnel in (applications/finlake/).
+    # Not public: Access is in front of these two (access.tf), and agentgateway
+    # checks the JWT it adds.
     {
       subdomain = "finlake-mcp"
-      service   = "http://mcp.finlake.svc.cluster.local:8080"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
+    },
+    {
+      subdomain = "jaeger-mcp"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
+    },
+    # The way in for a workflow, which has no browser to log in with. Access is
+    # not in front of it: agentgateway checks the run's own OIDC token.
+    {
+      subdomain = "jaeger-mcp-ci"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
   ]
 

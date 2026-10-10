@@ -1,7 +1,7 @@
-# ClusterIP only, for two callers. The collector writes traces to :4317; no
-# workload is given this address (theirs is applications/otel-collector). The
-# tunnel reads the UI at jaeger.jaeger.svc.cluster.local:16686, and the internet
-# gets that far only past Cloudflare Access.
+# ClusterIP only. The collector writes traces to :4317; no workload is given
+# this address (theirs is applications/otel-collector). The tunnel reads the UI
+# at jaeger.jaeger.svc.cluster.local:16686, and the internet gets that far only
+# past Cloudflare Access; agentgateway reads the MCP endpoint on the same port.
 apiVersion: v1
 kind: Service
 metadata:

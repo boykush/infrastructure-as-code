@@ -1,6 +1,6 @@
 # Serves the product transactions over MCP. The server has no login of its own
-# and the data is private: what guards it is Access on the hostname
-# (terraform/access.tf) and networkpolicy.yaml inside the cluster.
+# and the data is private: what guards it is agentgateway, which checks the
+# caller's token, and networkpolicy.yaml, which lets nothing else in.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
