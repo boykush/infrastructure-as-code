@@ -259,6 +259,7 @@ mise exec -- kubectl -n jaeger port-forward svc/jaeger 16686:16686
 | Parameter Store `/claude-code/oauth-token` | トークン本体（SecureString、既定の `aws/ssm` キー） |
 | IAM role `github-actions-claude-code` | 読む権限。信頼するのは `claude_code_repositories` に挙げた repo だけ |
 | IAM role `github-actions-terraform` | CI がこの設定を apply するための role |
+| IAM role `github-actions-terraform-plan` | PR の plan が使う読み取り専用の role。信頼するのは PR が起こした run だけ |
 | boykush/workflows の `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
 
 費用は実質 **$0**——standard parameter は保管も API 呼び出しも無料で、IAM と STS にも課金は無い。SecureString の復号で KMS の request が立つが、既定の `aws/ssm` キーに月額は無く、$0.03/10,000 なので月数百回なら $0.01 に届かない。
@@ -401,7 +402,7 @@ App の id（App ID / Client ID）はここに書かない。台帳は github-ma
 
 ### App を1つ入れる
 
-**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。main の run からだけ署名させる App は `main_only = true` にする（理由はそこのコメント）。
+**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。main の run からだけ署名させる App は `main_only = true`、PR の run からだけ署名させる App（plan 用の読み取り App）は `pull_request_only = true` にする（理由はそこのコメント）。
 
 **2. merge する。** **apply はローカルでやらない**。CI の role が持つ `iam:*` は ARN の列挙だが、そこに載る役割名は `github_apps` から**文字列で**組んである——resource の ARN を読むと policy が role の後ろに並び、「作る権限を与える更新」が「作る」より後に来てしまう。`depends_on` で policy の更新を先に置いてあるので、key も role も同じ apply の中で作れる。
 
