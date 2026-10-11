@@ -17,6 +17,6 @@ images:
     newTag: main
     digest: sha256:0c6d7f7468f4f822a53cfb9ff6cbe5c98793b2f5a29c95b750cb5298baafbf13
   - name: ghcr.io/boykush/wiki-mcp-server
-    digest: sha256:ff71f7c10961751b540cc7d6f5b256d9f759bff37e2cc09029f95039ff43e811
+    digest: sha256:946fa8422ea9d27bfb125f63fcc2d57af1ce6e4559ddc88475184b7b9573681e
     newName: ghcr.io/boykush/wiki-mcp-server
     newTag: main
