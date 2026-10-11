@@ -212,7 +212,15 @@ mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_SECRET_ACCESS_KEY
 
 Secret ができるまで `sync` の Pod は `CreateContainerConfigError` で止まる。
 
-`mcp` も同じ Secret で lake を読む。Secret を env で読むので、値を替えたら Pod を作り直す。
+`mcp` は読むだけなので、**読み取り専用のトークンを別に作る**。外から呼ばれる側の workload なので、乗っ取られても lake の書き換えや削除には届かないようにしておく。権限 Object Read only、対象をバケット `finlake` だけに絞って作り、エンドポイントは上と同じものを入れる。
+
+```sh
+mise run cluster:secret finlake finlake-r2-mcp FINLAKE_S3_ENDPOINT
+mise run cluster:secret finlake finlake-r2-mcp FINLAKE_S3_ACCESS_KEY_ID
+mise run cluster:secret finlake finlake-r2-mcp FINLAKE_S3_SECRET_ACCESS_KEY
+```
+
+Secret を env で読むので、値を替えたら Pod を作り直す。
 
 ```sh
 mise exec -- kubectl -n finlake rollout restart deployment/mcp
