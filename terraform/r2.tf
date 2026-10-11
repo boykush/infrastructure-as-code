@@ -4,7 +4,7 @@
 # a flat $5 — and because creating it takes only the Cloudflare token CI already
 # holds, where Spaces would need a second, all-bucket S3 key as a repository secret.
 #
-# Its tokens (read-write for the sync CronJob, read-only for the MCP server) are
+# Its token (read-write, shared by the sync CronJob and the MCP server) is
 # created in the dashboard, never through Terraform: a token resource
 # would put its secret into the HCP state.
 resource "cloudflare_r2_bucket" "finlake" {
