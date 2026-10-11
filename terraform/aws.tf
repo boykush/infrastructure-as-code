@@ -22,7 +22,6 @@ locals {
   # the policy CI applies with has to name them before they exist — see the
   # ordering note there. Same construction as the parameter ARNs above.
   external_secrets_role_name = "github-actions-external-secrets"
-  terraform_plan_role_name   = "github-actions-terraform-plan"
   external_secrets_user_name = "external-secrets"
   github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
 
@@ -39,13 +38,6 @@ locals {
   this_repository_subjects = [
     "repo:${var.github_owner}/${local.terraform_repository}:*",
     "repo:${var.github_owner}@${var.github_owner_id}/${local.terraform_repository}@*:*",
-  ]
-
-  # Runs a pull request wakes, and nothing else: a push to a branch carries
-  # that branch's ref instead, and a run of main carries main's.
-  this_repository_pull_request_subjects = [
-    "repo:${var.github_owner}/${local.terraform_repository}:pull_request",
-    "repo:${var.github_owner}@${var.github_owner_id}/${local.terraform_repository}@*:pull_request",
   ]
 
   # What a trusted sub ends in after the repository. A run of main carries its
@@ -349,7 +341,6 @@ data "aws_iam_policy_document" "terraform" {
       aws_iam_role.claude_code.arn,
       aws_iam_role.terraform.arn,
       "arn:aws:iam::${local.aws_account_id}:role/${local.external_secrets_role_name}",
-      "arn:aws:iam::${local.aws_account_id}:role/${local.terraform_plan_role_name}",
       "arn:aws:iam::${local.aws_account_id}:user/${local.external_secrets_user_name}",
       ], [
       for name in values(local.github_app_role_names) :
@@ -402,72 +393,4 @@ resource "aws_iam_role_policy" "terraform" {
   name   = "manage-github-actions-identities"
   role   = aws_iam_role.terraform.id
   policy = data.aws_iam_policy_document.terraform.json
-}
-
-# The role a pull request plans with. A plan runs the branch's own copy of the
-# workflow, so whatever role it assumes is handed to anyone who can push a
-# branch here; this one can read what the apply manages and change nothing.
-data "aws_iam_policy_document" "terraform_plan_trust" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = local.this_repository_pull_request_subjects
-    }
-  }
-}
-
-# What a refresh reads, and no more. IAM reads are open across the account,
-# which holds no other workload; the KMS reads stay on the account's own keys,
-# and none of them reaches a key's material or a signature.
-data "aws_iam_policy_document" "terraform_plan" {
-  statement {
-    effect    = "Allow"
-    actions   = ["iam:Get*", "iam:List*", "kms:ListAliases"]
-    resources = ["*"]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "kms:DescribeKey",
-      "kms:GetKeyPolicy",
-      "kms:GetKeyRotationStatus",
-      "kms:ListResourceTags",
-    ]
-
-    resources = [
-      "arn:aws:kms:${var.aws_region}:${local.aws_account_id}:key/*",
-    ]
-  }
-}
-
-resource "aws_iam_role" "terraform_plan" {
-  # iam:CreateRole on this ARN is granted by the policy update in this apply.
-  depends_on = [aws_iam_role_policy.terraform]
-
-  name               = local.terraform_plan_role_name
-  description        = "Plan this repository's AWS resources from a pull request, read-only"
-  assume_role_policy = data.aws_iam_policy_document.terraform_plan_trust.json
-}
-
-resource "aws_iam_role_policy" "terraform_plan" {
-  name   = "read-github-actions-identities"
-  role   = aws_iam_role.terraform_plan.id
-  policy = data.aws_iam_policy_document.terraform_plan.json
 }

@@ -259,7 +259,6 @@ mise exec -- kubectl -n jaeger port-forward svc/jaeger 16686:16686
 | Parameter Store `/claude-code/oauth-token` | トークン本体（SecureString、既定の `aws/ssm` キー） |
 | IAM role `github-actions-claude-code` | 読む権限。信頼するのは `claude_code_repositories` に挙げた repo だけ |
 | IAM role `github-actions-terraform` | CI がこの設定を apply するための role |
-| IAM role `github-actions-terraform-plan` | PR の plan が使う読み取り専用の role。信頼するのは PR が起こした run だけ |
 | boykush/workflows の `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
 
 費用は実質 **$0**——standard parameter は保管も API 呼び出しも無料で、IAM と STS にも課金は無い。SecureString の復号で KMS の request が立つが、既定の `aws/ssm` キーに月額は無く、$0.03/10,000 なので月数百回なら $0.01 に届かない。
