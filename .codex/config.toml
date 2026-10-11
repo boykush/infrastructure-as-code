@@ -7,5 +7,5 @@ url = "https://backstage.boykush.com/api/mcp-actions/v1/catalog"
 id = ""
 
 [mcp_servers.jaeger]
-url = "https://jaeger.boykush.com/api/ai/mcp/"
+url = "https://jaeger-mcp.boykush.com/mcp"
 id = ""
