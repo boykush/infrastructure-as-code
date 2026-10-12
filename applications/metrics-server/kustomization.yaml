@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Upstream's manifest as released; the version is the one in this URL.
+resources:
+  - https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
+
+patches:
+  # Upstream asks for 100m / 200Mi, sized for a hundred nodes, and sets no
+  # ceiling. This cluster has one node and little memory left on it.
+  - target:
+      kind: Deployment
+      name: metrics-server
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: metrics-server
+      spec:
+        template:
+          spec:
+            containers:
+              - name: metrics-server
+                resources:
+                  requests:
+                    cpu: 25m
+                    memory: 64Mi
+                  limits:
+                    memory: 128Mi

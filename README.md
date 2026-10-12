@@ -183,6 +183,20 @@ Access を抜けただけでは足りない。**Backstage は action を無記�
 
 catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
 
+### Headlamp
+
+node の利用状況（CPU・メモリの実測と、載っている Pod）を見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。
+
+Headlamp は本来、開いた人に ServiceAccount の token を貼らせる。ここではそれを止め、**誰が開いても Pod の ServiceAccount として読む**ようにしてある（`applications/headlamp/deployment.yaml`）。画面に出るのはその ServiceAccount が読めるものだけで、何を読めるかは `applications/headlamp/rbac.yaml` が持つ。権限の外のページはエラーになる。
+
+実測値の出どころは metrics-server（`applications/metrics-server/`）。DOKS には入っていないので、これが無いと Headlamp の利用率は空になり、`kubectl top` も動かない。
+
+port-forward でも入れる。tunnel を疑うときの切り分けに。`http://localhost:4466` を開く。
+
+```sh
+mise exec -- kubectl -n headlamp port-forward svc/headlamp 4466:4466
+```
+
 ### finlake
 
 [boykush/finlake](https://github.com/boykush/finlake) のお金まわりのデータ。オーナーがマネーフォワード ME の画面から落とした CSV を R2 の raw 層に置き、クラスタの CronJob `sync`（`applications/finlake/sync-cronjob.yaml`、namespace `finlake`）がそれを product の明細に変換する。置き方の決まり（フォルダ名、1か月に1ファイル）は finlake の README の「データレイク」が持つ。結果は同じ namespace の Deployment `mcp`（`applications/finlake/mcp-deployment.yaml`）が MCP で配る（→ [MCP](#mcp)）。

@@ -1,0 +1,22 @@
+# metrics-server: the source of the CPU and memory figures Headlamp
+# (applications/headlamp) draws for the node. DOKS ships without it, so until
+# this syncs the cluster has no metrics API at all. It lives in kube-system
+# because upstream's manifest wires its APIService and RBAC to that namespace.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/metrics-server
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true

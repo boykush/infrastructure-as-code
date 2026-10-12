@@ -1,0 +1,24 @@
+# Headlamp: a web view of the node and what runs on it, at headlamp.<domain>
+# through the tunnel. It asks for no login and shows what its ServiceAccount
+# may read, so Cloudflare Access (terraform/access.tf) is what keeps it to the
+# owner. The usage figures come from applications/metrics-server.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/boykush/infrastructure-as-code
+    targetRevision: main
+    path: applications/headlamp
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
