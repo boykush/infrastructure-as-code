@@ -8,6 +8,10 @@ metadata:
   name: backstage
 spec:
   replicas: 1
+  # A rolling update starts the new pod beside the old one, and the node has no
+  # room for two: the new one stays Pending and the old one keeps serving.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: backstage
