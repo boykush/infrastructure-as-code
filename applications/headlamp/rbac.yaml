@@ -1,6 +1,7 @@
 # Everyone who opens Headlamp acts as this account (deployment.yaml), so what
-# it may read is all the UI can show. That is the node, the pods on it and
-# their usage: no Secrets, no logs, and no verb that changes anything.
+# it may read is all the UI can show: the kinds this cluster actually uses.
+# Left out on purpose are Secrets, pod logs and exec, and every verb that
+# changes anything.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -9,10 +10,48 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: headlamp-node-usage
+  name: headlamp
 rules:
   - apiGroups: [""]
-    resources: [nodes, pods, namespaces, events]
+    resources:
+      - nodes
+      - namespaces
+      - events
+      - pods
+      - services
+      - configmaps
+      - serviceaccounts
+      - persistentvolumeclaims
+      - persistentvolumes
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+  # What Argo CD and External Secrets are told to do. An ExternalSecret names
+  # the parameter it copies, never the value.
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+  - apiGroups: [argoproj.io]
+    resources: [applications, appprojects]
+    verbs: [get, list, watch]
+  - apiGroups: [argocd-image-updater.argoproj.io]
+    resources: [imageupdaters]
+    verbs: [get, list, watch]
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets, clustersecretstores]
     verbs: [get, list, watch]
   # Served by applications/metrics-server.
   - apiGroups: [metrics.k8s.io]
@@ -22,11 +61,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: headlamp-node-usage
+  name: headlamp
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: headlamp-node-usage
+  name: headlamp
 subjects:
   - kind: ServiceAccount
     name: headlamp

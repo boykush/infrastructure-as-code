@@ -185,7 +185,7 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 ### Headlamp
 
-node の利用状況（CPU・メモリの実測と、載っている Pod）を見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。
+node の利用状況（CPU・メモリの実測）と、クラスタで動いているリソースを見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。
 
 Headlamp は本来、開いた人に ServiceAccount の token を貼らせる。ここではそれを止め、**誰が開いても Pod の ServiceAccount として読む**ようにしてある（`applications/headlamp/deployment.yaml`）。画面に出るのはその ServiceAccount が読めるものだけで、何を読めるかは `applications/headlamp/rbac.yaml` が持つ。権限の外のページはエラーになる。
 
