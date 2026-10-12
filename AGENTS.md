@@ -44,6 +44,10 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **version の固定**: `argocd/kustomization.yaml` の remote base の `?ref=` が version。上げるときはそこを書き換える（Image Updater も同様に `argocd/image-updater/`）。
 - **argocd-server に届く経路を広げない**。anonymous を admin にしてあり、Argo CD 自身のログインは無い。鍵は外からの Access（`terraform/access.tf`）と、クラスタ内で cloudflared 以外を止める NetworkPolicy（`argocd/kustomization.yaml`）だけで、どちらかを緩めると届いた相手がそのまま admin になる。
 
+## Headlamp（`applications/headlamp/`）
+
+- **ServiceAccount の権限を広げるときは、Access を抜けた相手全員に渡すものとして決める**。Headlamp はログインを持たず、届いた相手をそのまま Pod の ServiceAccount として扱う（`-unsafe-use-service-account-token`）。鍵は外からの Access（`terraform/access.tf`）と、cloudflared 以外を止める NetworkPolicy だけ。Secret を読める権限や書き込みの verb を足すと、どちらかが緩んだ時点でそれがそのまま外に出る。
+
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。

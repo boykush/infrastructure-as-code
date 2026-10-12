@@ -76,6 +76,23 @@ resource "cloudflare_zero_trust_access_application" "jaeger" {
   }]
 }
 
+# Headlamp, behind the same gate. It asks for no login and answers every
+# visitor as its ServiceAccount (applications/headlamp/deployment.yaml), so
+# this is the only lock on what that account may read of the cluster.
+resource "cloudflare_zero_trust_access_application" "headlamp" {
+  account_id                = local.account_id
+  name                      = "headlamp"
+  type                      = "self_hosted"
+  domain                    = "headlamp.${var.domain}"
+  destinations              = [{ type = "public", uri = "headlamp.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+}
+
 # The MCP servers that are not public. Access only issues here: it runs the
 # login and hands the request on with a signed JWT, and agentgateway is what
 # checks it (applications/agentgateway/config.yaml), so a caller inside the

@@ -1,0 +1,67 @@
+# Headlamp as upstream ships it, with no plugins and no state: every page is
+# read from the API server when it is opened.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp
+    spec:
+      serviceAccountName: headlamp
+      securityContext:
+        runAsNonRoot: true
+        # The image's USER is the name `headlamp`; the kubelet needs the number
+        # to prove it is not root.
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: headlamp
+          # Image Updater follows only what an ImageUpdater CR names, so this tag
+          # is bumped by hand, like cloudflared's.
+          image: ghcr.io/headlamp-k8s/headlamp:v0.45.0
+          args:
+            - -in-cluster
+            # Without this Headlamp asks each visitor to paste a token of their
+            # own. With it every request goes out as the pod's ServiceAccount
+            # (rbac.yaml), which upstream calls safe only behind an auth proxy:
+            # here that is Access, and networkpolicy.yaml closes the way round.
+            - -unsafe-use-service-account-token
+          ports:
+            - name: http
+              containerPort: 4466
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          volumeMounts:
+            # The only place it writes; the root filesystem stays read-only.
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}

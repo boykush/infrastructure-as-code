@@ -1,0 +1,23 @@
+# Headlamp answers anyone who reaches it as its ServiceAccount, so only the
+# tunnel may, and the tunnel comes past Access. Probes from the node and
+# port-forward, which lands on localhost, are beyond a NetworkPolicy's reach.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: headlamp
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - port: 4466
+          protocol: TCP
