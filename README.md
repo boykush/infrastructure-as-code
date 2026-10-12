@@ -158,7 +158,7 @@ mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:80
 
 ### Backstage
 
-[boykush/github-management](https://github.com/boykush/github-management) の `catalog/`（repo をまたいで作用する関係のカタログ）を見る Backstage。公式 image（`ghcr.io/backstage/backstage`）をそのまま使い、この repo が持つのは manifest と、image 既定の設定に重ねる `applications/backstage/app-config.yaml` だけ。
+[boykush/github-management](https://github.com/boykush/github-management) の `catalog/`（repo をまたいで作用する関係のカタログ）を見る Backstage。公式 image（`ghcr.io/backstage/backstage`）をそのまま使い、この repo が持つのは manifest と、image 既定の設定に重ねる `applications/backstage/app-config.yaml` だけ。画面に何を出すか（Home のリンク集・Catalog Graph）は catalog と同じ image に入って届き、その後ろに重なる。
 
 `https://backstage.boykush.com` で開く。tunnel で公開しているが、前段の **Cloudflare Access が owner のメールアドレスしか通さない**（`terraform/access.tf`）。ログインは GitHub で、Access を通った後の Backstage には guest で入る。
 
