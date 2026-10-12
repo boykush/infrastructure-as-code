@@ -21,6 +21,9 @@ awscli = "2.37.3"
 [env]
 AWS_CONFIG_FILE = "{{config_root}}/.aws/config"
 AWS_REGION = "ap-northeast-1"
+# One copy of the providers for every checkout: each .terraform then holds
+# symlinks instead of its own ~1 GB, which adds up fast across worktrees.
+TF_PLUGIN_CACHE_DIR = "{{env.HOME}}/.terraform.d/plugin-cache"
 
 # Overrides the global lockfile = true. The versions above are already exact, so
 # mise.lock is not kept here for now; deleting it is not enough on its own,
