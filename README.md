@@ -185,9 +185,11 @@ catalog は github-management が build する image（`ghcr.io/boykush/github-m
 
 ### Headlamp
 
-node の利用状況（CPU・メモリの実測と、載っている Pod）を見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。
+node の利用状況——CPU・メモリの実測と、それを食っている workload——を見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。
 
 Headlamp は本来、開いた人に ServiceAccount の token を貼らせる。ここではそれを止め、**誰が開いても Pod の ServiceAccount として読む**ようにしてある（`applications/headlamp/deployment.yaml`）。画面に出るのはその ServiceAccount が読めるものだけで、何を読めるかは `applications/headlamp/rbac.yaml` が持つ。権限の外のページはエラーになる。
+
+**Argo CD とは見るものが違う。** Argo CD は何を宣言し、同期したかを見せる。Headlamp は実際に何が動き、どれだけ使っているかを見せる——実測値と、Argo CD の管理外にある `kube-system` の workload はこちらにしか出ない。ConfigMap や NetworkPolicy のような宣言の側は Headlamp に読ませていない。
 
 実測値の出どころは metrics-server（`applications/metrics-server/`）。DOKS には入っていないので、これが無いと Headlamp の利用率は空になり、`kubectl top` も動かない。
 

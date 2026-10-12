@@ -1,6 +1,7 @@
 # Everyone who opens Headlamp acts as this account (deployment.yaml), so what
-# it may read is all the UI can show. That is the node, the pods on it and
-# their usage: no Secrets, no logs, and no verb that changes anything.
+# it may read is all the UI can show: what runs here and what it consumes.
+# What was declared, and whether it synced, is Argo CD's to show. Left out on
+# purpose are Secrets, pod logs and exec, and every verb that changes anything.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -9,10 +10,25 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: headlamp-node-usage
+  name: headlamp
 rules:
   - apiGroups: [""]
-    resources: [nodes, pods, namespaces, events]
+    resources: [nodes, namespaces, events, pods]
+    verbs: [get, list, watch]
+  # The owners a pod leads back to. Argo CD shows only the ones it manages,
+  # which leaves out everything in kube-system.
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list, watch]
+  # Volumes are billed by size whether or not anything is running.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
     verbs: [get, list, watch]
   # Served by applications/metrics-server.
   - apiGroups: [metrics.k8s.io]
@@ -22,11 +38,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: headlamp-node-usage
+  name: headlamp
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: headlamp-node-usage
+  name: headlamp
 subjects:
   - kind: ServiceAccount
     name: headlamp
