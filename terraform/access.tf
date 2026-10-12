@@ -99,13 +99,18 @@ resource "cloudflare_zero_trust_access_application" "mcp" {
 
   # The way in for an agent, which cannot follow the redirect to GitHub: Access
   # answers it 401 with OAuth metadata and issues the token itself, after the
-  # same login and policy. Any client may register, but only with a redirect to
-  # localhost, so a token lands nowhere but the machine that asked.
+  # same login and policy. Any client may register, but a token lands only on
+  # the machine that asked or with Claude's connectors. This covers every
+  # destination above, so finlake is one registration away from claude.ai too.
   oauth_configuration = {
     enabled = true
     dynamic_client_registration = {
       enabled                = true
       allow_any_on_localhost = true
+      allowed_uris = [
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://claude.com/api/mcp/auth_callback",
+      ]
     }
   }
 }
