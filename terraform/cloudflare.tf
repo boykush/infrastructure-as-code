@@ -82,3 +82,30 @@ data "cloudflare_zero_trust_tunnel_cloudflared_token" "this" {
   account_id = local.account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.this.id
 }
+
+# Headlamp has no setting for its language: the UI takes it from the browser,
+# and looks at a cookie named i18next before that. Setting the cookie here
+# keeps it in English everywhere, and it also outranks the choice saved by
+# Headlamp's own language picker.
+resource "cloudflare_ruleset" "headlamp_language" {
+  zone_id = local.zone_id
+  name    = "headlamp language"
+  kind    = "zone"
+  phase   = "http_response_headers_transform"
+
+  rules = [{
+    ref         = "headlamp_language"
+    description = "Keep Headlamp's UI in English"
+    expression  = "http.host eq \"headlamp.${var.domain}\""
+    action      = "rewrite"
+    action_parameters = {
+      headers = {
+        # add, not set: set would drop any cookie Headlamp sends itself.
+        Set-Cookie = {
+          operation = "add"
+          value     = "i18next=en; Path=/; Secure; SameSite=Lax"
+        }
+      }
+    }
+  }]
+}

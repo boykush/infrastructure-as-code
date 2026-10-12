@@ -189,6 +189,8 @@ node の利用状況（CPU・メモリの実測と、載っている Pod）を�
 
 Headlamp は本来、開いた人に ServiceAccount の token を貼らせる。ここではそれを止め、**誰が開いても Pod の ServiceAccount として読む**ようにしてある（`applications/headlamp/deployment.yaml`）。画面に出るのはその ServiceAccount が読めるものだけで、何を読めるかは `applications/headlamp/rbac.yaml` が持つ。権限の外のページはエラーになる。
 
+画面は英語に固定してある。Headlamp に言語の設定は無く、ブラウザの言語に合わせて日本語になるので、Cloudflare が応答に cookie を足して英語にしている（`terraform/cloudflare.tf` の `headlamp_language`）。port-forward で開いたときは効かない。
+
 実測値の出どころは metrics-server（`applications/metrics-server/`）。DOKS には入っていないので、これが無いと Headlamp の利用率は空になり、`kubectl top` も動かない。
 
 port-forward でも入れる。tunnel を疑うときの切り分けに。`http://localhost:4466` を開く。
