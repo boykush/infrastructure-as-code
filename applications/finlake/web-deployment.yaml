@@ -7,6 +7,10 @@ metadata:
   name: web
 spec:
   replicas: 1
+  # The node's memory is all but requested, so a second pod during a rollout
+  # would stay Pending. A moment down is fine for one reader.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: web
@@ -55,7 +59,7 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 128Mi
+              memory: 96Mi
             limits:
               memory: 384Mi
       volumes:

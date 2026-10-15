@@ -8,6 +8,10 @@ metadata:
 spec:
   # One node, and the data lives in R2, so there is no state to spread.
   replicas: 1
+  # The node's memory is all but requested, so a second pod during a rollout
+  # would stay Pending. A moment down is fine for one reader.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: api
@@ -62,11 +66,11 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-          # The same binary and queries as the MCP server.
+          # The same binary and queries as the MCP server, which held 63Mi idle.
           resources:
             requests:
               cpu: 25m
-              memory: 96Mi
+              memory: 64Mi
             limits:
               memory: 512Mi
       volumes:
