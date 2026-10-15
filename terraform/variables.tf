@@ -80,6 +80,10 @@ variable "tunnel_routes" {
       service   = "http://jaeger.jaeger.svc.cluster.local:16686"
     },
     {
+      subdomain = "finlake"
+      service   = "http://web.finlake.svc.cluster.local:3000"
+    },
+    {
       subdomain = "headlamp"
       service   = "http://headlamp.headlamp.svc.cluster.local:4466"
     },

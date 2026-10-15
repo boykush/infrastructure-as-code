@@ -1,0 +1,64 @@
+# The dashboard (Next.js), served through the tunnel at finlake.<domain>. It has
+# no login: Access in front of the hostname is the lock (terraform/access.tf),
+# and networkpolicy.yaml lets only cloudflared in. It reads the data from api.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # Built in boykush/finlake (web/). The tag here is only what the
+          # kustomization's images block matches on; what runs is the digest
+          # pinned there.
+          image: ghcr.io/boykush/finlake-web:main
+          env:
+            # Read by the server only; the browser never calls the API.
+            - name: FINLAKE_API_URL
+              value: http://api.finlake.svc.cluster.local:8080
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # Next.js writes its cache under .next/cache next to server.js.
+          volumeMounts:
+            - name: cache
+              mountPath: /app/.next/cache
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+      volumes:
+        - name: cache
+          emptyDir:
+            sizeLimit: 64Mi
