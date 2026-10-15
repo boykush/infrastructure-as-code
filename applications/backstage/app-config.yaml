@@ -41,6 +41,30 @@ catalog:
       rules:
         - allow: [User]
 
+# The Kubernetes tab on an entity. The catalog picks the workloads by label
+# (backstage.io/kubernetes-label-selector); this says only where to look. With
+# no serviceAccountToken, the plugin uses the mounted one (rbac.yaml).
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - name: boykush-cluster
+          url: https://kubernetes.default.svc
+          authProvider: serviceAccount
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  # What rbac.yaml lets it list; the defaults include ConfigMaps and more.
+  objectTypes:
+    - pods
+    - services
+    - deployments
+    - replicasets
+    - statefulsets
+    - daemonsets
+    - jobs
+    - cronjobs
+
 # What coding agents connect to, in the repositories that declare it through apm.
 # The default server at /api/mcp-actions/v1 is always exposed and always serves
 # every registered action, so Access opens this named one alone

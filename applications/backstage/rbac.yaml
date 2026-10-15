@@ -1,0 +1,42 @@
+# What the Kubernetes tab on an entity may show. Everyone past Access acts as
+# this account (guest sign-in, allow-all policy, and the plugin's proxy), so it
+# is held to what Headlamp's may read, minus nodes and volumes, which belong to
+# no entity. Secrets, pod logs, exec and every write stay out for the same reason.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backstage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage
+rules:
+  # Exactly the kubernetes.objectTypes in app-config.yaml: a type it may not
+  # list shows up as an error on the tab.
+  - apiGroups: [""]
+    resources: [pods, services]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list, watch]
+  # Served by applications/metrics-server.
+  - apiGroups: [metrics.k8s.io]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: backstage

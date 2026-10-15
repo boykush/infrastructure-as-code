@@ -4,3 +4,11 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
+
+# What github-management's catalog finds this workload by, on the Deployments
+# and Jobs as well as on their pods: the Kubernetes tab lists only the owners
+# that carry it. Selectors are left alone, since they cannot change in place.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: wiki
+    includeTemplates: true
