@@ -28,7 +28,7 @@ images:
   - name: ghcr.io/boykush/finlake
     newName: ghcr.io/boykush/finlake
     newTag: main
-    digest: sha256:3944defcfe7baca5d85a9194bda700d6e3331469e0323319df1b162201dd8210
+    digest: sha256:e7a7c99ee1f648140b92f747eee12b77e98c15c793d5161782c78375827c607f
   - name: ghcr.io/boykush/finlake-web
     newName: ghcr.io/boykush/finlake-web
     newTag: main
