@@ -1,0 +1,23 @@
+# Anyone who reaches Backstage can sign in as guest and read the cluster as its
+# ServiceAccount (rbac.yaml), so only the tunnel may, and the tunnel comes past
+# Access. Probes from the node are beyond a NetworkPolicy's reach.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backstage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: backstage
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - port: 7007
+          protocol: TCP

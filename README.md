@@ -183,6 +183,8 @@ Access を抜けただけでは足りない。**Backstage は action を無記�
 
 catalog は github-management が build する image（`ghcr.io/boykush/github-management-catalog`、public）から、init container が `/catalog` にコピーして読ませる。GitHub の credential は要らない。catalog が更新されると、Image Updater が新しい digest を `applications/backstage/kustomization.yaml` に書き戻し（何を追うかは `applications/backstage/imageupdater.yaml`）、Pod が作り直されて読み直す。
 
+entity のページには Kubernetes タブがあり、その repo の workload の状態（Deployment・pod・CronJob など）が出る。どの workload を出すかは catalog 側の annotation が `app.kubernetes.io/part-of` の label で選び、その label はこの repo の各アプリの `kustomization.yaml` が付ける。クラスタは Pod の ServiceAccount で読み、Headlamp と同じく誰が開いてもその権限になる。何を読めるかは `applications/backstage/rbac.yaml` が持ち、cloudflared 以外からは届かないようにしてある（`applications/backstage/networkpolicy.yaml`）。
+
 ### Headlamp
 
 node の利用状況——CPU・メモリの実測と、それを食っている workload——を見る [Headlamp](https://headlamp.dev)。`https://headlamp.boykush.com` で開く。Backstage や Argo CD と同じく Access（`terraform/access.tf`）の GitHub ログインだけで入れ、Headlamp 自身のログインは無い。

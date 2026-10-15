@@ -20,7 +20,9 @@ spec:
       labels:
         app.kubernetes.io/name: backstage
     spec:
-      automountServiceAccountToken: false
+      # The Kubernetes plugin reads the cluster with this account's mounted token
+      # (rbac.yaml), so the cluster it shows is the one it runs in.
+      serviceAccountName: backstage
       securityContext:
         runAsNonRoot: true
         # The image's USER is the name `node`; the kubelet needs the number to

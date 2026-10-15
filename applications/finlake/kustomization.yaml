@@ -13,6 +13,14 @@ resources:
   - externalsecret.yaml
   - imageupdater.yaml
 
+# What github-management's catalog finds this workload by, on the Deployments
+# and Jobs as well as on their pods: the Kubernetes tab lists only the owners
+# that carry it. Selectors are left alone, since they cannot change in place.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: finlake
+    includeTemplates: true
+
 # Image Updater rewrites these entries, pinning the digest behind the moving
 # `main` tag. One image serves every finlake workload but the dashboard; the
 # subcommand picks the role.
