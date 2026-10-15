@@ -21,7 +21,7 @@ images:
     newName: ghcr.io/boykush/finlake
     newTag: main
     digest: sha256:3944defcfe7baca5d85a9194bda700d6e3331469e0323319df1b162201dd8210
-  # No digest until Image Updater first pins one.
   - name: ghcr.io/boykush/finlake-web
     newName: ghcr.io/boykush/finlake-web
     newTag: main
+    digest: sha256:f1f2a6eb18dfc86baee2dc79ee62f55f27f296bb170ba55e32d38c28f9d1d513
