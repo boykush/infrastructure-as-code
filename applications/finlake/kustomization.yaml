@@ -5,14 +5,23 @@ resources:
   - sync-cronjob.yaml
   - mcp-deployment.yaml
   - mcp-service.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - web-deployment.yaml
+  - web-service.yaml
   - networkpolicy.yaml
   - externalsecret.yaml
   - imageupdater.yaml
 
-# Image Updater rewrites this entry, pinning the digest behind the moving `main`
-# tag. One image serves every finlake workload; the subcommand picks the role.
+# Image Updater rewrites these entries, pinning the digest behind the moving
+# `main` tag. One image serves every finlake workload but the dashboard; the
+# subcommand picks the role.
 images:
   - name: ghcr.io/boykush/finlake
     newName: ghcr.io/boykush/finlake
     newTag: main
     digest: sha256:4d67eff27cd21827e660f5d55bf2189d8b0792dbad58f207a0c15f3397802430
+  # No digest until Image Updater first pins one.
+  - name: ghcr.io/boykush/finlake-web
+    newName: ghcr.io/boykush/finlake-web
+    newTag: main

@@ -1,0 +1,14 @@
+# ClusterIP only: the one caller is cloudflared, which dials
+# web.finlake.svc.cluster.local:3000 (terraform/variables.tf).
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
