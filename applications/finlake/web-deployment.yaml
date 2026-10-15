@@ -34,6 +34,10 @@ spec:
             # Read by the server only; the browser never calls the API.
             - name: FINLAKE_API_URL
               value: http://api.finlake.svc.cluster.local:8080
+            # A small heap makes V8 collect early instead of growing to the limit:
+            # 157Mi after 60 page loads without it, 122Mi with it (measured locally).
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=64 --max-semi-space-size=1
           ports:
             - name: http
               containerPort: 3000
@@ -59,9 +63,9 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 96Mi
+              memory: 128Mi
             limits:
-              memory: 384Mi
+              memory: 256Mi
       volumes:
         - name: cache
           emptyDir:
