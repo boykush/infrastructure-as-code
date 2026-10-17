@@ -93,23 +93,6 @@ resource "cloudflare_zero_trust_access_application" "headlamp" {
   }]
 }
 
-# finlake's dashboard, behind the same gate. It shows household money and has
-# no login of its own, so this is the only lock from a browser; inside the
-# cluster its NetworkPolicy lets only cloudflared in.
-resource "cloudflare_zero_trust_access_application" "finlake" {
-  account_id                = local.account_id
-  name                      = "finlake"
-  type                      = "self_hosted"
-  domain                    = "finlake.${var.domain}"
-  destinations              = [{ type = "public", uri = "finlake.${var.domain}" }]
-  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
-  auto_redirect_to_identity = true
-  policies = [{
-    id         = cloudflare_zero_trust_access_policy.owner.id
-    precedence = 1
-  }]
-}
-
 # The MCP servers that are not public. Access only issues here: it runs the
 # login and hands the request on with a signed JWT, and agentgateway is what
 # checks it (applications/agentgateway/config.yaml), so a caller inside the
