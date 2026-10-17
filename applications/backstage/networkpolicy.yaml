@@ -1,6 +1,7 @@
 # Anyone who reaches Backstage can sign in as guest and read the cluster as its
-# ServiceAccount (rbac.yaml), so only the tunnel may, and the tunnel comes past
-# Access. Probes from the node are beyond a NetworkPolicy's reach.
+# ServiceAccount (rbac.yaml), so only the tunnel, which comes past Access, and
+# agentgateway, which checks a token before the catalog MCP, may. Probes from
+# the node are beyond a NetworkPolicy's reach.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -18,6 +19,12 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: cloudflared
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: agentgateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agentgateway
       ports:
         - port: 7007
           protocol: TCP

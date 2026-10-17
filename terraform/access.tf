@@ -106,6 +106,7 @@ resource "cloudflare_zero_trust_access_application" "mcp" {
   destinations = [
     { type = "public", uri = "finlake-mcp.${var.domain}" },
     { type = "public", uri = "jaeger-mcp.${var.domain}" },
+    { type = "public", uri = "catalog-mcp.${var.domain}" },
   ]
   allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
   auto_redirect_to_identity = true
@@ -140,10 +141,10 @@ moved {
   to   = cloudflare_zero_trust_access_application.mcp
 }
 
-# The one path that answers without a login: the MCP server coding agents read
-# the catalog with. They have no identity for Access to check, and Backstage
-# cannot lift its auth policy for a single plugin, so the narrowing happens
-# here. Bypass skips enforcement; Allow would still send them to GitHub.
+# The one path that answers without a login: the catalog MCP server as it was
+# reached before catalog-mcp.<domain>, left open until no client still uses it.
+# Backstage cannot lift its auth policy for a single plugin, so the narrowing
+# happens here. Bypass skips enforcement; Allow would still send them to GitHub.
 resource "cloudflare_zero_trust_access_policy" "public" {
   account_id = local.account_id
   name       = "Public"
