@@ -28,10 +28,3 @@ spec:
           manifestTargets:
             kustomize:
               name: ghcr.io/boykush/finlake
-        - alias: finlake-web
-          imageName: ghcr.io/boykush/finlake-web:main
-          commonUpdateSettings:
-            updateStrategy: digest
-          manifestTargets:
-            kustomize:
-              name: ghcr.io/boykush/finlake-web

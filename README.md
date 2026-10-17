@@ -231,14 +231,6 @@ port-forward でも入れる。tunnel を疑うときの切り分けに。
 mise exec -- kubectl -n finlake port-forward svc/mcp 8080:8080
 ```
 
-
-#### ダッシュボード
-
-`https://finlake.boykush.com` で開く。Deployment `web`（`applications/finlake/web-deployment.yaml`）が画面を、
-`api`（`applications/finlake/api-deployment.yaml`）がその裏の API を動かす。どちらもログインを持たず、`web` の前段の
-Access（`terraform/access.tf`）が GitHub ログインで絞る。クラスタ内では NetworkPolicy が、`web` には cloudflared
-以外を、`api` には `web` 以外を通さない。
-
 ### OpenTelemetry Collector と Jaeger
 
 workload のテレメトリーは OpenTelemetry Collector（`applications/otel-collector/`）が受け、後段の Jaeger（`applications/jaeger/`）へ流す。**workload が知るのは Collector の Service だけ**で、何をどこへ流すかは `applications/otel-collector/config.yaml` の `pipelines` と `exporters` が持つ。後段を替えるときに触るのはそこだけで、workload 側は変わらない。
