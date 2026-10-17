@@ -51,9 +51,9 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## MCP サーバー（`applications/remote-mcp-server/`）
 
 - **公開は無認証**: `scraps mcp serve --http` は認証も TLS も持たない（公式にも "not meant to be exposed to a network"）。それでもインターネットに出しているのは、wiki の内容が元から公開で MCP 側が読み取り専用だから——前段の認証は**あえて置いていない**判断。絞るなら Cloudflare の rate limit / Access を被せる側で、manifest は触らない。adr も同じ理由で無認証——boykush/adr は public で、adi の MCP も認証を持たない読み取り専用。
-- **非公開の MCP（finlake・jaeger）は、route の `jwtAuth` を外さない**。Access は発行するだけで、検証するのは agentgateway——tunnel から来たことを信用しないので、Access を通らないクラスタ内の呼び出しもここで落ちる。サーバーにログインは無く、鍵はこの `jwtAuth` と、agentgateway 以外を止める各サーバーの NetworkPolicy だけ。どちらかを緩めると家計や trace がそのまま読める。
+- **非公開の MCP（finlake・jaeger・catalog）は、route の `jwtAuth` を外さない**。Access は発行するだけで、検証するのは agentgateway——tunnel から来たことを信用しないので、Access を通らないクラスタ内の呼び出しもここで落ちる。サーバーにログインは無く、鍵はこの `jwtAuth` と、agentgateway 以外を止める各サーバーの NetworkPolicy だけ（Backstage は Access を通った cloudflared も通す）。どちらかを緩めると家計や trace、catalog がそのまま読める。
 - **非公開の MCP を足すときは、Access application `mcp` の `destinations` に載せる**（`terraform/access.tf`）。別の application を作ると AUD tag が別になり、agentgateway の `audiences` と合わなくなる。
-- **CI からの入口（`<name>-mcp-ci.<ドメイン>`）は Access の外に居る**。workflow はログインできないので、GitHub が run に発行する OIDC token を agentgateway が直に検証する。誰を通すかは route の `authorization` が名指しする repo だけで決まるので、`repository_owner` のような広い条件に替えない。
+- **CI からの入口（`<name>-mcp-ci.<ドメイン>`）は Access の外に居る**。workflow はログインできないので、GitHub が run に発行する OIDC token を agentgateway が直に検証する。誰を通すかは route の `authorization` が名指しする repo だけで決まるので、`repository_owner` のような広い条件に替えない。全 repo から呼ばれる reusable workflow（ai-review）は、repo の代わりにその workflow を `job_workflow_ref` で名指しし、owner も併せて絞る——public な workflow は誰の repo からでも呼べる。
 - **Cloudflare 側の HTTP Host Header 書き換えは使わない**。Deployment が渡す `--allowed-host` が入った時点で不要になった、一時期の回避策。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
 - **tunnel の先は agentgateway で、サーバーではない**。agentgateway は後ろへ送るとき Host をクラスタ内の Service 名にするので、Host を検証するサーバー（scraps）はその名前も許可しておく——無いと 403 になる。

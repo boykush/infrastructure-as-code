@@ -83,7 +83,7 @@ variable "tunnel_routes" {
       subdomain = "headlamp"
       service   = "http://headlamp.headlamp.svc.cluster.local:4466"
     },
-    # Not public: Access is in front of these two (access.tf), and agentgateway
+    # Not public: Access is in front of these (access.tf), and agentgateway
     # checks the JWT it adds.
     {
       subdomain = "finlake-mcp"
@@ -93,10 +93,18 @@ variable "tunnel_routes" {
       subdomain = "jaeger-mcp"
       service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
-    # The way in for a workflow, which has no browser to log in with. Access is
-    # not in front of it: agentgateway checks the run's own OIDC token.
+    {
+      subdomain = "catalog-mcp"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
+    },
+    # The ways in for a workflow, which has no browser to log in with. Access is
+    # not in front of them: agentgateway checks the run's own OIDC token.
     {
       subdomain = "jaeger-mcp-ci"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
+    },
+    {
+      subdomain = "catalog-mcp-ci"
       service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
   ]
