@@ -36,6 +36,21 @@ spec:
               value: auto
             - name: FINLAKE_S3_URL_STYLE
               value: path
+            # Setting this is what turns finlake's tracing on; without it finlake
+            # sends nothing. The collector is the only address a workload is
+            # given (applications/otel-collector/service.yaml), and the port is
+            # its HTTP one because finlake speaks OTLP over HTTP alone.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.otel-collector.svc.cluster.local:4318
+            # The name this server has on the tunnel and in the catalog.
+            - name: OTEL_SERVICE_NAME
+              value: finlake-mcp
+            # OpenTelemetry's GenAI semantic conventions leave a tool call's
+            # arguments off a span unless asked for. They carry household money
+            # (search keywords and the like); Jaeger, which keeps them, is open
+            # only to the owner through Access.
+            - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+              value: "true"
           # FINLAKE_S3_ENDPOINT, FINLAKE_S3_ACCESS_KEY_ID and
           # FINLAKE_S3_SECRET_ACCESS_KEY. The sync's token, which can also
           # write; the server itself only ever reads.
