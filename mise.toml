@@ -132,7 +132,7 @@ echo "wrote /external-secrets/{access-key-id,secret-access-key}; now: gh workflo
 # task の tool を入れないため——この repo の workflow に node は増えない。
 [tasks."app:key-import"]
 description = "Import a GitHub App private key into its KMS key (one import per key, forever)"
-tools = { node = "24.21.0" }
+tools = { node = "24.22.0" }
 usage = '''
 arg "<app>" help="App name as written in var.github_apps, which names the alias"
 arg "<pem>" help="Path to the private key GitHub generated"
