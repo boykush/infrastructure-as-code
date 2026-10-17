@@ -62,6 +62,60 @@ dependencies:
 deployments:
 - kind: project-relative
   target: claude
+  value: .claude/skills/add-claude-code-repo
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/add-claude-code-repo/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
+- kind: project-relative
+  target: claude
+  value: .claude/skills/add-github-app
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/add-github-app/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+- kind: project-relative
+  target: claude
+  value: .claude/skills/add-mcp-server
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/add-mcp-server/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+- kind: project-relative
+  target: claude
   value: .claude/skills/ade-rule-dsl
   runtime: null
   scope: project
@@ -204,6 +258,60 @@ deployments:
   - boykush/ai-plugins/plugins/adr-remote-mcp
   active_owner: boykush/ai-plugins/plugins/adr-remote-mcp
   content_hash: sha256:7db35c60c4f6922baaf1118445ef6282dc4ed01454ea1ebab4ef6f358790eb67
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-claude-code-repo
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-claude-code-repo/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-github-app
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-github-app/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-mcp-server
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/add-mcp-server/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
 - kind: uri
   target: mcp
   value: adr
@@ -291,3 +399,23 @@ mcp_config_provenance:
   adr: adr-remote-mcp
   catalog: catalog-remote-mcp
   jaeger: jaeger-remote-mcp
+local_deployed_files:
+- .agents/skills/add-claude-code-repo
+- .agents/skills/add-claude-code-repo/SKILL.md
+- .agents/skills/add-github-app
+- .agents/skills/add-github-app/SKILL.md
+- .agents/skills/add-mcp-server
+- .agents/skills/add-mcp-server/SKILL.md
+- .claude/skills/add-claude-code-repo
+- .claude/skills/add-claude-code-repo/SKILL.md
+- .claude/skills/add-github-app
+- .claude/skills/add-github-app/SKILL.md
+- .claude/skills/add-mcp-server
+- .claude/skills/add-mcp-server/SKILL.md
+local_deployed_file_hashes:
+  .agents/skills/add-claude-code-repo/SKILL.md: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
+  .agents/skills/add-github-app/SKILL.md: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+  .agents/skills/add-mcp-server/SKILL.md: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+  .claude/skills/add-claude-code-repo/SKILL.md: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
+  .claude/skills/add-github-app/SKILL.md: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+  .claude/skills/add-mcp-server/SKILL.md: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2

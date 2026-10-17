@@ -4,23 +4,13 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤のリポ
 
 ## クラスタ
 
-| 項目 | 値 | 補足 |
-| --- | --- | --- |
-| region | `sgp1`（Singapore） | DO に東京リージョンは無く、日本から最も近い |
-| Kubernetes | `terraform/variables.tf` の `kubernetes_version_prefix` が固定する minor | patch は DO の auto-upgrade 任せ |
-| node pool | `s-2vcpu-4gb` × 1 | 連続稼働で $24/月。Argo CD + DOKS の system pod が載る実質の下限。夜間は 0 台に落とす |
-| control plane | 非 HA | 無料。HA にすると +$40/月 |
-| VPC | 専用 / `10.10.0.0/16` | 無料。`ip_range` は後から変更できない |
-| maintenance | 日曜 04:00 UTC | = 日曜 13:00 JST。夜間停止の時間帯を避けてある |
+region・node のサイズと台数・control plane・VPC・maintenance window は `terraform/variables.tf` と `terraform/main.tf` が持ち、選んだ理由はそれぞれのコメントにある。node の台数は作成後は夜間停止の workflow が持つ（→ [夜間停止](#夜間停止node-pool-parkyml--node-pool-resumeyml)）。
 
 ## Argo CD
 
 クラスタ上のアプリケーションは Argo CD で同期する。Argo CD 自身も Application として自己管理される。
 
-| ディレクトリ | 中身 |
-| --- | --- |
-| `argocd/` | Argo CD 本体と Image Updater（kustomize の remote base。version はそれぞれの `kustomization.yaml` の `?ref=`） |
-| `applications/` | アプリごとに `<name>.yaml`（Application）と `<name>/`（manifest）。イメージのビルドは各アプリのリポジトリ側 |
+ディレクトリの分け方は AGENTS.md の「レイアウト」にある。
 
 ### bootstrap（初回のみ）
 
@@ -44,9 +34,7 @@ tunnel の先は各サーバーではなく agentgateway（`applications/agentga
 
 catalog を引く MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
 
-エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。`<name>-mcp.<ドメイン>` で並べる。Cloudflare の Universal SSL が覆うのは1階層目までなので、`<name>.mcp.<ドメイン>` のような2階層は使わない。
-
-**wiki と adr の MCP は無認証で公開している**——どちらも内容は元から公開で、scraps と adi の MCP はどちらも読み取り専用なので、前段に認証を置いていない。絞りたくなったら Cloudflare 側で rate limit を被せるか、下の非公開の MCP と同じ形にする。
+公開ホスト名の付け方と、wiki・adr の MCP を無認証で公開している理由は AGENTS.md の「MCP サーバー」節にある。
 
 #### 非公開の MCP の認証
 
@@ -54,7 +42,7 @@ finlake と Jaeger の MCP は同じ agentgateway の後ろに居るが、route 
 
 **人が使うエージェント**は Access を通る。エージェントは GitHub へのリダイレクトを辿れないので、Access の Managed OAuth（`terraform/access.tf` の `oauth_configuration`）が入口になる——Access が 401 で OAuth の metadata を返し、GitHub ログインと owner policy を通した後に token を出す。通した request には Access が署名した JWT が `Cf-Access-Jwt-Assertion` ヘッダで付き、agentgateway はそれを Access の公開鍵と application の AUD tag で検証する。**Access は発行、agentgateway は検証**という分担で、Access を通らないクラスタ内からの呼び出しは JWT を持たないので agentgateway が落とす。`oauth_configuration` を変えた直後は数分待つ——反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
 
-**workflow** はログインできないので、Access の外に別のホスト名（`<name>-mcp-ci.<ドメイン>`。今は Jaeger だけ）を持つ。GitHub が run に発行する OIDC token を、そのホスト名を audience にして取り、`Authorization: Bearer` で渡す。agentgateway が GitHub の公開鍵で検証し、route の `authorization` が名指しする repo だけを通す。secret は配らない。job には `id-token: write` が要る。
+**workflow** はログインできないので、Access の外に別のホスト名（`<name>-mcp-ci.<ドメイン>`。どのサーバーが持つかは `terraform/variables.tf` の `tunnel_routes`）を持つ。GitHub が run に発行する OIDC token を、そのホスト名を audience にして取り、`Authorization: Bearer` で渡す。agentgateway が GitHub の公開鍵で検証し、route の `authorization` が名指しする repo だけを通す。secret は配らない。job には `id-token: write` が要る。
 
 ```sh
 curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -63,12 +51,7 @@ curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
 
 #### MCP サーバーを増やす
 
-1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く
-2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
-3. `applications/remote-mcp-server/imageupdater.yaml` の `images` に `alias` / `imageName` / `updateStrategy` を1つ足す
-4. `applications/agentgateway/config.yaml` に、公開ホスト名からそのサーバーへの route を1つ足す
-5. `terraform/variables.tf` の `tunnel_routes` に `subdomain` を1つ足す（`service` は agentgateway）
-6. [boykush/github-management](https://github.com/boykush/github-management) の catalog に API を足し、出す repo の component から `providesApis` を張る（書き方は `catalog/apis.yaml` の先頭）
+手順は skill `add-mcp-server`（`.apm/skills/add-mcp-server/`）。
 
 #### tunnel の設定
 
@@ -83,7 +66,7 @@ tunnel 本体・route（hostname → Service）・DNS の CNAME はすべて `te
 
 `service` は **クラスタ内から見た FQDN**。`cloudflared` は別 namespace に居るので短縮名では引けない。catch-all（`http_status:404`）と CNAME は `subdomain` から自動で付く。
 
-zone ID と account ID は `var.domain` から引いている。API token に要る権限は Account: Cloudflare Tunnel (Edit) / Zone: DNS (Edit) / Zone: Zone (Read) / Zone: Transform Rules (Edit)、Access（`terraform/access.tf`）のために Account: Access: Apps / Access: Policies / Access: Identity Providers（いずれも Write）、finlake の R2 バケットのために Account: Workers R2 Storage (Edit)。
+zone ID と account ID は `var.domain` から引いている。API token に要る権限は `terraform/providers.tf` の `cloudflare` provider のコメントが持つ。
 
 token は credential なので git に入れず、Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。tunnel を作り直したときだけやり直す。
 
@@ -94,7 +77,7 @@ mise exec -- terraform -chdir=terraform output -raw tunnel_token \
 
 Secret ができるまで `cloudflared` の Pod は `CreateContainerConfigError` で止まる。
 
-**scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。既定の許可リストは `localhost` / `127.0.0.1` / `::1` だけなので、公開ホスト名で叩くと 403 `Forbidden: Host header is not allowed` になる。Deployment の `--allowed-host` に公開ホスト名を渡して許可する（scraps v1.2.0 以降）。loopback は残るので port-forward も併用できる。**Cloudflare 側で HTTP Host Header を書き換える設定は不要**——入っていたら外す。
+**scraps は Host ヘッダを検証する**（rmcp の DNS リバインディング対策）。既定の許可リストは `localhost` / `127.0.0.1` / `::1` だけなので、公開ホスト名で叩くと 403 `Forbidden: Host header is not allowed` になる。Deployment の `--allowed-host` に公開ホスト名を渡して許可する（scraps v1.2.0 以降）。loopback は残るので port-forward も併用できる。Cloudflare 側の Host Header 書き換えについては AGENTS.md の「MCP サーバー」節。
 
 adi（`adr`）は Host を loopback で受けた接続でしか検証しない（公式 Go SDK の既定と同じ判定）。tunnel からの接続は pod network 経由なので、`--allowed-host` に当たる設定は要らない。
 
@@ -106,7 +89,7 @@ mise exec -- kubectl -n remote-mcp-server port-forward svc/wiki 1113:1113
 
 Image Updater の git write-back には main への push 権限が要る（Argo CD は読むだけなので別の credential）。**PAT では通らない**——main の ruleset のうち push を止めるもの（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけなので、専用の App を作り、その App id をそれらすべての bypass actor に足す（github-management の ruleset module が付ける）。App に要る権限は Contents: write、install 先はこのリポジトリだけでいい。
 
-credential は Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。Secret `argocd/image-updater-git-creds` の3つの key がそのまま App の3つの値で、**private key も GitHub には置かない**（→ [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)）。この App の鍵だけは KMS に入れられない——Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものがクラスタに要る。
+credential は Parameter Store に書く（→ [クラスタの Secret](#クラスタの-secret)）。Secret `argocd/image-updater-git-creds` の3つの key がそのまま App の3つの値で、**private key も GitHub には置かない**。この App の鍵だけ KMS に入らない理由は [GitHub App の秘密鍵（AWS KMS）](#github-app-の秘密鍵aws-kms)。
 
 ```sh
 echo 4703313 | mise run cluster:secret argocd image-updater-git-creds githubAppID
@@ -135,7 +118,7 @@ Secret を増やすときは、app の directory に `ExternalSecret` を足し�
 
 #### operator 自身の access key
 
-**operator は IAM の access key で Parameter Store を読む**——この基盤で唯一の長命な AWS の鍵。role にできないのは、DOKS が ServiceAccount token に書く issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、AWS から検証できないため。鍵が開くのは上の path の読み取りだけ（`terraform/aws.tf`）。
+**operator は IAM の access key で Parameter Store を読む**——この基盤で唯一の長命な AWS の鍵。role にできない理由は AGENTS.md の「DOKS の勘所」。鍵が開くのは上の path の読み取りだけ（`terraform/aws.tf`）。
 
 この鍵だけは operator が自分で取れないので、Actions の **External Secrets Credential**（`workflow_dispatch`）が GitHub の OIDC で読んでクラスタに入れる。鍵を作るのも入れ替えるのも同じ2行で、クラスタを作り直したときは2行目だけ。
 
@@ -280,16 +263,11 @@ mise exec -- kubectl -n jaeger port-forward svc/jaeger 16686:16686
 
 `boykush` は **User アカウントなので organization secret が無い**。Claude Code Actions を動かす repo ごとに `CLAUDE_CODE_OAUTH_TOKEN` を置くしかなく、実際 wiki は OAuth トークン、scraps は API キーと割れていた。トークンを AWS に1つ置き、**各 repo はその run の OIDC で読む**ことにして、repo 側から秘密を無くす。
 
-| 置き場 | 中身 |
-| --- | --- |
-| Parameter Store `/claude-code/oauth-token` | トークン本体（SecureString、既定の `aws/ssm` キー） |
-| IAM role `github-actions-claude-code` | 読む権限。信頼するのは `claude_code_repositories` に挙げた repo だけ |
-| IAM role `github-actions-terraform` | CI がこの設定を apply するための role |
-| boykush/workflows の `.github/actions/claude-code-token/` | 各 repo が呼ぶ composite action |
+トークンの parameter と、それを読む role・CI が apply に使う role は `terraform/aws.tf`（parameter の名前は `terraform/variables.tf` の `claude_code_parameter_name`）が持つ。各 repo が呼ぶ composite action は boykush/workflows の `.github/actions/claude-code-token/`。
 
 費用は実質 **$0**——standard parameter は保管も API 呼び出しも無料で、IAM と STS にも課金は無い。SecureString の復号で KMS の request が立つが、既定の `aws/ssm` キーに月額は無く、$0.03/10,000 なので月数百回なら $0.01 に届かない。
 
-**Terraform はトークンを持たない**。`aws_ssm_parameter` は refresh のたびに値を読み戻すので、resource にすると HCP の state にトークンが載る。だから parameter だけは CLI で書き、Terraform が持つのは信頼と権限（`terraform/aws.tf`）だけにしてある。
+**Terraform はトークンを持たない**（理由は AGENTS.md の「AWS の認証情報」）。parameter だけは CLI（`mise run claude:token`）で書く。
 
 ### bootstrap（初回のみ）
 
@@ -313,7 +291,7 @@ login_session = arn:aws:iam::509266991346:root
 region = ap-northeast-1
 ```
 
-**profile 名は `default` で、`AWS_PROFILE` は `[env]` に置かない。** mise の `[env]` は CI にも届く——tool は shim として PATH に載り、shim は実行時に `[env]` を適用するため、`env: false` で `GITHUB_ENV` を塞いでも回り込む。名前付き profile を指していると、CI の terraform が `.aws/config` の無い runner で `failed to get shared config profile` と落ちる。
+**profile 名は `default` で、`AWS_PROFILE` は `[env]` に置かない**（理由は `mise.toml` の `[env]` のコメントと AGENTS.md の「Backend / 認証」）。名前付き profile を指していると、CI の terraform が `.aws/config` の無い runner で `failed to get shared config profile` と落ちる。
 
 一時認証情報の方は `~/.aws/login/cache/` に入る（`AWS_LOGIN_CACHE_DIRECTORY` で移せるが、12時間で失効するものなので既定のまま）。
 
@@ -371,31 +349,11 @@ mise exec -- aws logout
 
 ### ローテーション
 
-`mise exec -- aws login` してから `mise run claude:token` を流すだけ。**`claude setup-token` が出すトークンの有効期間は1年**なので、定期の入れ替えはその周期。漏洩を疑ったときは即座に同じ手順で差し替える。**22 repo に `gh secret set` して回る必要が無い**のがこの構成の実利で、現実的に回せる頻度が上がる。
+`mise exec -- aws login` してから `mise run claude:token` を流すだけ。**`claude setup-token` が出すトークンの有効期間は1年**なので、定期の入れ替えはその周期。漏洩を疑ったときは即座に同じ手順で差し替える。**repo ごとに `gh secret set` して回る必要が無い**のがこの構成の実利で、現実的に回せる頻度が上がる。
 
 ### repo を足す
 
-1. `terraform/variables.tf` の `claude_code_repositories` に1行足す（これで trust policy が広がる）
-2. その repo の workflow に2 step 足す
-
-```yaml
-    permissions:
-      id-token: write # 以下は既存の permissions に足す
-
-    steps:
-      - name: Fetch the Claude Code token
-        id: claude-token
-        uses: boykush/workflows/.github/actions/claude-code-token@<sha>
-
-      - name: Run Claude Code
-        uses: anthropics/claude-code-action@<sha>
-        with:
-          claude_code_oauth_token: ${{ steps.claude-token.outputs.token }}
-```
-
-composite action も他の action と同じく **SHA で固定する**（zizmor が未固定を落とす）。追従は Renovate に任せる。PR の ai-review を入れるだけなら step は書かず、boykush/workflows の README にある呼び出し側を置く。
-
-**`sub` クレームの形式は repo の作成時期で違う**。[2026-07-15 以降に作られた repo](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/) は `repo:<owner>@<owner_id>/<repo>@<repo_id>:...` と ID 入りになり、それ以前の repo は opt-in するまで名前だけ。trust policy は**両方を列挙している**ので足す側は意識しなくていいが、片方しか無いと作成時期次第で `Not authorized to perform sts:AssumeRoleWithWebIdentity` になる——CI から見えるのはこのメッセージだけなので、実際に届いた `sub` は CloudTrail の `AssumeRoleWithWebIdentity` イベントで確かめる。
+手順は skill `add-claude-code-repo`（`.apm/skills/add-claude-code-repo/`）。`sub` クレームの2形式は AGENTS.md の「AWS の認証情報」。
 
 ### 限界
 
@@ -419,67 +377,11 @@ App の id（App ID / Client ID）はここに書かない。台帳は github-ma
 
 費用は **key 1本 $1/月**（本数は `github_apps` の数）。署名は RSA 2048 の request なので $0.03/10,000——Renovate を毎時回しても月 $0.01 に届かない。Parameter Store 側はこれまでどおり $0。
 
-**鍵は Terraform を通らない**。`key_material_base64` を渡すと private key が HCP の state に載るので、Terraform が作るのは **material の入っていない空の key**（origin EXTERNAL、`PendingImport`）と、それで署名できる role だけ。material は CLI で入れる。
+**鍵は Terraform を通らない**・**role は App ごとに分ける**・**CI は key を作れるが使えない**、の3つがこの構成の要で、理由は AGENTS.md の「AWS の認証情報」にある。
 
-**role は App ごとに分ける**。1つの role に全部の key への `kms:Sign` を持たせると、renovate-runner の run が「全 repo を管理する App」として署名できてしまう。trust policy が列挙するのはその App を使う repo だけで、対応は `terraform/variables.tf` の `github_apps` が持つ。
+### App を入れる・鍵を入れ替える
 
-**CI は key を作れるが使えない**。`github-actions-terraform` が持つのは KMS の管理操作だけで、`kms:Sign` も `kms:ImportKeyMaterial` も `kms:PutKeyPolicy` も無い——この repo の run が App として署名することも、key の中身を入れ替えることも、key policy で自分に権限を足すこともできない。
-
-### App を1つ入れる
-
-**1. `terraform/variables.tf` の `github_apps` に足す。** `name` が KMS の alias と role の名前になり、`repositories` がその App として署名できる repo になる。main の run からだけ署名させる App は `main_only = true` にする（理由はそこのコメント）。
-
-**2. merge する。** **apply はローカルでやらない**。CI の role が持つ `iam:*` は ARN の列挙だが、そこに載る役割名は `github_apps` から**文字列で**組んである——resource の ARN を読むと policy が role の後ろに並び、「作る権限を与える更新」が「作る」より後に来てしまう。`depends_on` で policy の更新を先に置いてあるので、key も role も同じ apply の中で作れる。
-
-IAM の反映は結果整合なので、広がった直後の `CreateKey` が稀に `AccessDenied` を返すことがある。その時は workflow を再実行する（apply は冪等）。
-
-**3. 鍵を入れる。** ここだけは手元でやる——PEM が手元にしか無いため。**KMS は1つの key に material を1度しか受け付けない**（同じ material なら再インポートできるが、別の material は入らない）。
-
-```sh
-mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
-```
-
-KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で 1217 バイト）が包めないので AES-KWP が要る。macOS の `openssl` は LibreSSL でそれを持たないため、この task だけ node の `crypto` を借りている。**node は task の tool として宣言してある**ので、初回に mise が入れるだけで、`mise install` にも CI にも降りてこない。
-
-`KeyState: Enabled` が返れば入っている。**ここで手元の PEM を消す**——これ以降どこからも読み出せない値で、残しておくと KMS に入れた意味が減る。
-
-**手元に PEM が無ければ App の設定で作り直す。** repo secret に入れた鍵は読み出せないので、既に secret に置いてある App を移すときは必ずこうなる。App は private key を複数持てるので、**新しい鍵を生成 → KMS に入れる → workflow を差し替える → 古い鍵を App から revoke** の順なら、途中で動かない時間ができない。同じことが `image-updater` の鍵（`mise run cluster:secret`）にも当てはまる。
-
-**4. App の id を台帳に足す。** github-management の `catalog/github-apps.yaml` に `<name>-app` の Resource を書き、annotation に App ID か Client ID を入れる。同じ値を boykush/workflows の `github-app-token` の表にも足す——workflow が渡すのは App 名だけなので、名前から id を引けないとトークンは出ない。
-
-**5. 使う側の repo の workflow を差し替える。**
-
-```yaml
-    permissions:
-      id-token: write # 既存の permissions に足す
-
-    steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: boykush/workflows/.github/actions/github-app-token@<SHA>
-        with:
-          app: renovate
-          permission-contents: write
-```
-
-`permission-*` は**最低1つ必須**で、ここが公式の action と違う。AWS の認証は action の中で完結し、後続の step には渡らない。alias も role の ARN も region も `app` から決まるので、使う側は ARN を持たない。
-
-**6. その repo の secret を消す。** `gh secret delete RENOVATE_APP_PRIVATE_KEY`。ここで初めて「鍵が GitHub に無い」状態になる。
-
-### 鍵を入れ替える
-
-App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わるので、`-target` はこの3つ。alias を名指ししているのは `github-app-token` なので、使う側の workflow は触らなくていい。
-
-```sh
-mise exec -- terraform -chdir=terraform apply \
-  -replace='aws_kms_external_key.github_app["renovate"]' \
-  -target='aws_kms_external_key.github_app["renovate"]' \
-  -target=aws_kms_alias.github_app \
-  -target=aws_iam_role_policy.github_app
-mise run app:key-import renovate ~/Downloads/<app>.private-key.pem
-```
-
-古い key は 30 日の待機を経て消える（その間は `kms:CancelKeyDeletion` で戻せる）。**key を消すことは鍵を失うこと**で、手元の PEM はもう無い——戻す道は App 側で鍵を作り直して入れ直すことだけ。`prevent_destroy` を付けていないのはクラスタと同じ理由で、作り直せるものを消せなくしないため。
+App を1つ入れる手順と鍵を入れ替える手順は skill `add-github-app`（`.apm/skills/add-github-app/`）。
 
 ### 監査
 
@@ -501,7 +403,7 @@ Terraform / doctl / kubectl / AWS CLI を [mise](https://mise.jdx.dev/) で固�
 mise install   # mise.toml のバージョンで導入
 ```
 
-kubectl をリポジトリ側で固定しているのは、マシン全体の client（1.30）がクラスタの minor（`kubernetes_version_prefix`）に対して skew（±1 minor）を超えているため。
+個々の tool を固定している理由は `mise.toml` のコメント。
 
 ## Local development
 
@@ -526,32 +428,17 @@ mise exec -- terraform plan
 
 ## CI（`.github/workflows/terraform.yml`）
 
-| トリガ | 動作 |
-| --- | --- |
-| PR | `terraform plan`（tfcmt がコメント） |
-| push to main | `terraform apply` |
-
-| secret | 用途 |
-| --- | --- |
-| `TF_API_TOKEN` | HCP backend（`TF_TOKEN_app_terraform_io` 経由） |
-| `DIGITALOCEAN_ACCESS_TOKEN` | `digitalocean` provider |
-| `CLOUDFLARE_API_TOKEN` | `cloudflare` provider（tunnel、DNS、Access） |
-| `ACCESS_OWNER_EMAIL` | Access が通すメールアドレス（`TF_VAR_access_owner_email`） |
-| `ACCESS_GITHUB_CLIENT_SECRET` | Access の GitHub ログインの client secret（`TF_VAR_access_github_client_secret`） |
+PR で `terraform plan`（tfcmt がコメント）、main への push で `terraform apply`。トリガと、各 step に渡す secret は `.github/workflows/terraform.yml` が持つ。
 
 **External Secrets Credential**（`workflow_dispatch`）は External Secrets Operator の access key を Secret `external-secrets/parameter-store-credentials` として適用する（→ [クラスタの Secret](#クラスタの-secret)）。Secret を書くので push では起動しない。鍵は repo secret ではなく Parameter Store から OIDC で読む（`github-actions-external-secrets` role）。
 
-HCP の workspace `infrastructure-as-code` は Execution Mode = **Local**（実行は CLI / CI 側、HCP は state + lock のみ）。
+HCP の workspace は Execution Mode = **Local**（`terraform/versions.tf` のコメント）。
 
 ## 夜間停止（`node-pool-park.yml` / `node-pool-resume.yml`）
 
 worker node を毎晩 0 台に落として朝に戻す。node は止めている間は課金されない（止めても課金が続くのは Jaeger の volume だけ → [費用](#費用)）。
 
-| workflow | cron（UTC） | JST | 動作 |
-| --- | --- | --- | --- |
-| **Node Pool Park** | `37 16 * * *` | 01:37 | node pool を 0 に |
-| **Node Pool Resume** | `37 21 * * *` | 06:37 | 1 に戻し、配信が戻るまで待つ |
-| **Node Pool Status** | dispatch のみ | | node pool / droplet / node を読むだけ |
+park は node pool を 0 に、resume は 1 に戻して配信が戻るまで待ち、**Node Pool Status**（`node-pool-status.yml`、dispatch のみ）は読むだけ。時刻は各 workflow の `cron` と、その隣のコメント（JST と選んだ理由）が持つ。
 
 やることが違う（resume だけが復帰を待つ）ので workflow を分けてある。どちらも `workflow_dispatch` を持つので、手動実行がそのまま動作確認と復旧手段になる。`concurrency` group は共通（`node-pool`）で、park と resume は重ならない。
 
@@ -571,13 +458,12 @@ worker node を毎晩 0 台に落として朝に戻す。node は止めている
 - **park が 5 時間以上遅れると resume を追い越す**。`concurrency` group が直列化するので park が後に回り、日中ずっと停止したままになる。実測最大 3 時間 02 分に対して余裕は 2 時間弱しかない。
 - **`count 0` は desired state。到達後もしばらく node が列挙され続ける**ので、park 直後の `Count 0` は課金が止まった証拠にならない。判断材料はノード名で、park を挟むと別名のノードとして戻る（`default-3fthnc` → `default-3ft41g`）。droplet が作り直されている、つまり課金が切れている。
 - Status の droplet 一覧は CI の token に droplet read が無いので 403 になる。落とさず続行する。見たければ token の scope を広げる。
-- `node_count` は Terraform の `ignore_changes` 対象。main への apply がこの workflow と競合しない。
 - 止めたくない日は Actions の UI から workflow を disable する。
 - schedule は repo が 60 日無活動だと自動停止するが、Image Updater の commit が入るので実質起きない。
 
 ## 費用
 
-クラスタで課金されるのは worker node と Jaeger の volume で、control plane と VPC は無料。volume は **$0.10/GiB・月**（サイズは `applications/jaeger/pvc.yaml`）で、node を止めていても課金が続く。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（今は4本で $4/月）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。finlake の R2 は無料枠（保存 10 GB/月、書き込み 100 万回・読み取り 1000 万回/月、転送は無料）に収まるので $0。
+クラスタで課金されるのは worker node と Jaeger の volume で、control plane と VPC は無料。volume は **$0.10/GiB・月**（サイズは `applications/jaeger/pvc.yaml`）で、node を止めていても課金が続く。MCP サーバーの公開に Cloudflare Tunnel を使っているのも、Load Balancer（$12/月〜）を増やさないため。AWS 側は GitHub App の鍵を持つ KMS の key が **1本 $1/月**（本数は `github_apps` の数）で、それ以外——IAM・STS・standard parameter——は保管も呼び出しも無料。finlake の R2 は無料枠（保存 10 GB/月、書き込み 100 万回・読み取り 1000 万回/月、転送は無料）に収まるので $0。
 
 node は秒課金（$0.03571/時）だが **月 672 時間（28 日）で頭打ち**になる。連続稼働なら毎月この上限に当たるので $24/月で一定、裏を返せば月 48 時間までの停止は請求に効かない。
 

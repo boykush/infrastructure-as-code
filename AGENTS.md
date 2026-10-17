@@ -1,6 +1,6 @@
 # AGENTS.md
 
-boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。構成値と手順は README を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
+boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。構成値と1回きりの手順は README を、繰り返す手順は skill（`.apm/skills/`）を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
 
 ## レイアウト
 
