@@ -1,4 +1,4 @@
-# What Image Updater follows for Backstage: only the catalog image. A CR of its
+# What Image Updater follows for Backstage: the app and the catalog. A CR of its
 # own rather than an entry in remote-mcp-server's, so each app's directory holds
 # everything about it; it sits in argocd because the controller watches only there.
 apiVersion: argocd-image-updater.argoproj.io/v1alpha1
@@ -16,6 +16,13 @@ spec:
   applicationRefs:
     - namePattern: backstage
       images:
+        - alias: app
+          imageName: ghcr.io/boykush/backstage-app:main
+          commonUpdateSettings:
+            updateStrategy: digest
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/boykush/backstage-app
         - alias: catalog
           imageName: ghcr.io/boykush/github-management-catalog:main
           commonUpdateSettings:
