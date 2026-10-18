@@ -37,10 +37,10 @@ binds:
                     - name: wiki
                       mcp:
                         host: http://wiki.remote-mcp-server.svc.cluster.local:1113/mcp
-          # The two below are not public. Access runs the login and passes the
+          # The ones below are not public. Access runs the login and passes the
           # request on with a JWT it signed; checking that here, rather than
           # trusting the tunnel, is what refuses a caller inside the cluster.
-          # The audience is the AUD tag of the one Access application both
+          # The audience is the AUD tag of the one Access application all these
           # hostnames belong to (terraform/access.tf).
           - hostnames: [finlake-mcp.boykush.com]
             policies:
@@ -70,6 +70,21 @@ binds:
                     - name: jaeger
                       mcp:
                         host: http://jaeger.jaeger.svc.cluster.local:16686/api/ai/mcp/
+          - hostnames: [catalog-mcp.boykush.com]
+            policies:
+              jwtAuth: *access
+              # Backstage runs no action for an anonymous caller, so this names
+              # one. The value has to match applications/backstage/app-config.yaml.
+              backendAuth: &catalog-principal
+                key:
+                  value: catalog-mcp-public-reader
+            backends: &catalog
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: catalog
+                      mcp:
+                        host: http://backstage.backstage.svc.cluster.local:7007/api/mcp-actions/v1/catalog
           # The way in for a workflow, which cannot log in to Access. It shows
           # the OIDC token GitHub mints for the run, asked for with this
           # hostname as its audience, and the rule names the repositories let
@@ -92,3 +107,21 @@ binds:
                     - name: jaeger
                       mcp:
                         host: http://jaeger.jaeger.svc.cluster.local:16686/api/ai/mcp/
+          # The catalog for boykush/workflows' ai-review, which every repository
+          # calls, so the rule names that workflow rather than the callers. The
+          # owner is named too: the workflow is public, and anyone may call it.
+          - hostnames: [catalog-mcp-ci.boykush.com]
+            policies:
+              jwtAuth:
+                mode: strict
+                issuer: https://token.actions.githubusercontent.com
+                audiences: [https://catalog-mcp-ci.boykush.com]
+                jwks:
+                  url: https://token.actions.githubusercontent.com/.well-known/jwks
+              authorization:
+                rules:
+                  - allow: >-
+                      jwt.repository_owner == "boykush" &&
+                      jwt.job_workflow_ref.startsWith("boykush/workflows/.github/workflows/ai-review.yml@")
+              backendAuth: *catalog-principal
+            backends: *catalog

@@ -12,10 +12,10 @@ backend:
   baseUrl: https://backstage.boykush.com
   auth:
     # Backstage runs no action for an anonymous caller, a check its auth policy
-    # does not govern, so the MCP server needs a principal. Cloudflare sets this
-    # on the one path Access lets through (terraform/access.tf), where the value
-    # has to match. It is a name tag rather than a credential: what it reaches
-    # is read-only, so it is written here instead of synced from a secret.
+    # does not govern, so the MCP server needs a principal. agentgateway sets
+    # this once it has checked the caller (applications/agentgateway/config.yaml),
+    # where the value has to match. A name tag rather than a credential: what it
+    # reaches is read-only, so it is written here instead of synced from a secret.
     externalAccess:
       - type: static
         options:
@@ -65,10 +65,10 @@ kubernetes:
     - jobs
     - cronjobs
 
-# What coding agents connect to, in the repositories that declare it through apm.
+# What coding agents connect to, through agentgateway as catalog-mcp.<domain>.
 # The default server at /api/mcp-actions/v1 is always exposed and always serves
-# every registered action, so Access opens this named one alone
-# (terraform/access.tf) and the filter keeps it to reading the catalog.
+# every registered action, so agentgateway forwards to this named one alone and
+# the filter keeps it to reading the catalog.
 mcpActions:
   servers:
     catalog:
@@ -83,8 +83,8 @@ mcpActions:
             attributes:
               readOnly: true
   # Puts each call's arguments and result on its span. Upstream leaves this off
-  # because they can be sensitive; here they are catalog reads this server
-  # already hands to anyone, and the spans stay in the cluster.
+  # because they can be sensitive; here they are catalog reads, and the spans
+  # stay in the cluster, behind the same owner-only login as the catalog.
   tracing:
     capture:
       toolPayload: true

@@ -32,17 +32,17 @@ tunnel の先は各サーバーではなく agentgateway（`applications/agentga
 
 この repo が持つのは公開エンドポイントまで（URL と MCP サーバー名は catalog の各 API の `definition`）。**エージェントに使わせる設定は担当外**で、[boykush/ai-plugins](https://github.com/boykush/ai-plugins) が apm package として配る。
 
-catalog を引く MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。ホスト名も取らず、`backstage.<ドメイン>` の path で分かれる。
+catalog を引く MCP サーバーは Backstage が出すので、この Application には居ない（→ [Backstage](#backstage)）。外へは agentgateway が `catalog-mcp.<ドメイン>` として出す。
 
 公開ホスト名の付け方と、wiki・adr の MCP を無認証で公開している理由は AGENTS.md の「MCP サーバー」節にある。
 
 #### 非公開の MCP の認証
 
-finlake と Jaeger の MCP は同じ agentgateway の後ろに居るが、route が token を要求する（`applications/agentgateway/config.yaml` の `jwtAuth`）。入口は2つある。
+finlake・Jaeger・catalog の MCP は同じ agentgateway の後ろに居るが、route が token を要求する（`applications/agentgateway/config.yaml` の `jwtAuth`）。入口は2つある。
 
 **人が使うエージェント**は Access を通る。エージェントは GitHub へのリダイレクトを辿れないので、Access の Managed OAuth（`terraform/access.tf` の `oauth_configuration`）が入口になる——Access が 401 で OAuth の metadata を返し、GitHub ログインと owner policy を通した後に token を出す。通した request には Access が署名した JWT が `Cf-Access-Jwt-Assertion` ヘッダで付き、agentgateway はそれを Access の公開鍵と application の AUD tag で検証する。**Access は発行、agentgateway は検証**という分担で、Access を通らないクラスタ内からの呼び出しは JWT を持たないので agentgateway が落とす。`oauth_configuration` を変えた直後は数分待つ——反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
 
-**workflow** はログインできないので、Access の外に別のホスト名（`<name>-mcp-ci.<ドメイン>`。どのサーバーが持つかは `terraform/variables.tf` の `tunnel_routes`）を持つ。GitHub が run に発行する OIDC token を、そのホスト名を audience にして取り、`Authorization: Bearer` で渡す。agentgateway が GitHub の公開鍵で検証し、route の `authorization` が名指しする repo だけを通す。secret は配らない。job には `id-token: write` が要る。
+**workflow** はログインできないので、Access の外に別のホスト名（`<name>-mcp-ci.<ドメイン>`。どのサーバーが持つかは `terraform/variables.tf` の `tunnel_routes`）を持つ。GitHub が run に発行する OIDC token を、そのホスト名を audience にして取り、`Authorization: Bearer` で渡す。agentgateway が GitHub の公開鍵で検証し、route の `authorization` が名指しする repo（全 repo から呼ばれる reusable workflow なら、その workflow）だけを通す。secret は配らない。job には `id-token: write` が要る。
 
 ```sh
 curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -147,17 +147,17 @@ mise exec -- kubectl -n argocd port-forward svc/argocd-server 8080:80
 
 Access を外してはいけない。Backstage は guest で誰でもサインインでき permission も allow-all なので、素のまま公開すると、scaffolder の試し実行など guest に許した操作を誰でも動かせてしまう。
 
-例外は path が1つだけある。coding agent が catalog を引く MCP サーバーで、`https://backstage.boykush.com/api/mcp-actions/v1/catalog` を Access の bypass policy で無記名のまま通す。出しているのは read-only の catalog action（`catalog:query-catalog-entities` など）に絞った named server で、絞っていない既定の server（`/api/mcp-actions/v1`。常に全 action を出す）は Access の内側に残る。Access は具体的な path を先に評価するので、この2つは共存する。
+coding agent が catalog を引く MCP サーバーは、read-only の catalog action（`catalog:query-catalog-entities` など）に絞った named server（`/api/mcp-actions/v1/catalog`）。絞っていない既定の server（`/api/mcp-actions/v1`。常に全 action を出す）と同じ Backstage に居るので、外へは agentgateway が named server だけを `https://catalog-mcp.boykush.com/mcp` として出す。認証は他の非公開の MCP と同じ（→ [非公開の MCP の認証](#非公開の-mcp-の認証)）。workflow の入口は `catalog-mcp-ci.<ドメイン>` で、通すのは boykush/workflows の ai-review だけ。
 
 ```sh
-claude mcp add --transport http catalog https://backstage.boykush.com/api/mcp-actions/v1/catalog
+claude mcp add --transport http catalog https://catalog-mcp.boykush.com/mcp
 ```
 
-Access を抜けただけでは足りない。**Backstage は action を無記名では実行しない**——auth policy とは別のチェックで、設定からは外せない（`tools/list` は通るのに `tools/call` が `NotAllowedError` になる）。そこで `backend.auth.externalAccess` に static token を置き、Cloudflare の Transform Rule が同じ path にだけ `Authorization: Bearer` を足す。エージェント側は何も持たない。
+token を検証しただけでは足りない。**Backstage は action を無記名では実行しない**——auth policy とは別のチェックで、設定からは外せない（`tools/list` は通るのに `tools/call` が `NotAllowedError` になる）。そこで `backend.auth.externalAccess` に static token を置き、agentgateway が検証の後に `Authorization: Bearer` として付け直す（route の `backendAuth`）。エージェント側は何も持たない。
 
-**この値は秘密ではない。** Backstage が要求するのは「空白を含まない8文字以上」だけで、一致すれば `subject` がそのまま principal になる——鍵ではなく名札で、通せるのは read-only の catalog action だけ。だから `terraform/access.tf` と `applications/backstage/app-config.yaml` に literal で書いてある（**両方を揃える**。ズレたら 401 で、開きっぱなしにはならない）。秘密にすると、同期と rotate と「Secret が無いと Pod が上がらない」依存を抱える代わりに守れるのは Access の path を誤って広げた場合だけで、割に合わない。
+**この値は秘密ではない。** Backstage が要求するのは「空白を含まない8文字以上」だけで、一致すれば `subject` がそのまま principal になる——鍵ではなく名札で、通せるのは read-only の catalog action だけ。だから `applications/agentgateway/config.yaml` と `applications/backstage/app-config.yaml` に literal で書いてある（**両方を揃える**。ズレたら 401 で、開きっぱなしにはならない）。Backstage に届くのは Access を通った cloudflared と agentgateway だけ（`applications/backstage/networkpolicy.yaml`）なので、値を知っていても外からは使えない。
 
-裏を返すと、**境界は Access の path 1本**しかない。`terraform/access.tf` の `domain` と `destinations` を触る変更はそこが全てなので、レビューではそこを見る。
+以前の入口（`https://backstage.boykush.com/api/mcp-actions/v1/catalog` を Access の bypass policy で無記名のまま通し、Cloudflare の Transform Rule が同じ path に static token を足す）は、クライアントが `catalog-mcp.<ドメイン>` へ移り終えるまで残してある（`terraform/access.tf` の `catalog_mcp` と `catalog_mcp_principal`）。
 
 - 通すメールアドレスは public repo に置かず、secret `ACCESS_OWNER_EMAIL` から `TF_VAR_access_owner_email` で渡す。照合する相手は GitHub がログインしたアカウントについて返すアドレスなので、そのアドレスにしておく（Zero Trust ダッシュボードで GitHub のログイン方法の Test を押すと見られる）。
 - GitHub ログインは owner の OAuth App を通る。Settings → Developer settings → OAuth Apps で手で作り、Homepage URL に `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL に `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback` を入れる。Client ID は `terraform/access.tf` に書き、Client secret は secret `ACCESS_GITHUB_CLIENT_SECRET` から `TF_VAR_access_github_client_secret` で渡す。
