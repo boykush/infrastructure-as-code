@@ -181,6 +181,7 @@ variable "claude_code_repositories" {
   default = [
     "adr",
     "ai-plugins",
+    "backstage-app",
     "boykush",
     "dotfiles",
     "finlake",
