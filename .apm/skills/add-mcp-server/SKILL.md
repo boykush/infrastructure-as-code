@@ -13,7 +13,7 @@ description: remote MCP サーバーを1つ増やし、tunnel 経由で `<name>-
 
 ## 手順
 
-1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く（`wiki/` と `adr/` が参照実装。Host を検証するサーバーなら `wiki/deployment.yaml` の `--allowed-host` に倣う）
+1. `applications/remote-mcp-server/<name>/` に Deployment / Service / kustomization を置く（`wiki/` と `adr/` が参照実装。Host を検証するサーバーなら `wiki/deployment.yaml` の `--allowed-host` に倣う。adi のように loopback で受けた接続しか Host を検証しないサーバーは、pod network から来る tunnel の接続では検証しないので要らない）
 2. `applications/remote-mcp-server/kustomization.yaml` の `resources` と `images` に1行ずつ足す
 3. `applications/remote-mcp-server/imageupdater.yaml` の `images` に `alias` / `imageName` / `updateStrategy` を1つ足す
 4. `applications/agentgateway/config.yaml` に、公開ホスト名からそのサーバーへの route を1つ足す

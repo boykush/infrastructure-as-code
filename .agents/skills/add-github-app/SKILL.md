@@ -7,7 +7,7 @@ description: GitHub App の private key を AWS KMS に入れ、指定した rep
 
 ## 前提
 
-- なぜ KMS に入れるか、どの App があるかは README の「GitHub App の秘密鍵（AWS KMS）」と `terraform/variables.tf` の `github_apps` にある。鍵を Terraform に通さない・role を App ごとに分ける・CI に足さない権限は AGENTS.md の「AWS の認証情報」節にある。
+- なぜ KMS に入れるかは `terraform/aws.tf` のコメント、どの App があるかは `terraform/variables.tf` の `github_apps` にある。費用は key 1本 $1/月（`docs/cost.md`）。鍵を Terraform に通さない・role を App ごとに分ける・CI に足さない権限は AGENTS.md の「AWS の認証情報」節にある。
 - `image-updater` の App は対象外（鍵がクラスタに要るので KMS に入れられない）。`mise run cluster:secret` で Parameter Store に入れる。
 
 ## App を1つ入れる
@@ -51,14 +51,21 @@ mise run app:key-import <name> ~/Downloads/<app>.private-key.pem
 
 ## 鍵を入れ替える
 
-App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わるので、`-target` はこの3つ。alias を名指ししているのは `github-app-token` なので、使う側の workflow は触らなくていい。
+App 側で private key を作り直したら、**KMS の key も作り直す**。material は入れ替えられないので、key を replace して alias を新しい key に向け、そこへ新しい PEM を入れる。role の policy も新しい ARN に書き換わる。alias を名指ししているのは `github-app-token` なので、使う側の workflow は触らなくていい。
+
+**replace は一時 workflow で行う**（手元から apply しない）。`workflow_dispatch` だけで起動し、`terraform.yml` と同じ認証（OIDC の role と secret）と `concurrency` group を使って、次を流す。通ったら workflow を消す PR を出す。
 
 ```sh
-mise exec -- terraform -chdir=terraform apply \
+terraform -chdir=terraform apply -auto-approve \
   -replace='aws_kms_external_key.github_app["<name>"]' \
   -target='aws_kms_external_key.github_app["<name>"]' \
   -target=aws_kms_alias.github_app \
   -target=aws_iam_role_policy.github_app
+```
+
+PEM を入れるのは手元（PEM が手元にしか無いため）。
+
+```sh
 mise run app:key-import <name> ~/Downloads/<app>.private-key.pem
 ```
 
@@ -66,4 +73,10 @@ mise run app:key-import <name> ~/Downloads/<app>.private-key.pem
 
 ## 失敗の見え方
 
-README の「GitHub App の秘密鍵（AWS KMS）」の「失敗の見え方」の表を見る。
+| 症状 | 原因 |
+| --- | --- |
+| action が `KMSInvalidStateException` | key が `PendingImport` のまま（material を入れていない） |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | その repo が `github_apps` の `repositories` に無い。`main_only` の App なら、main 以外の run から来た |
+| action が入力エラーで落ちる | `permission-*` が1つも無い |
+
+実際に届いた `sub` も、どの run が署名したかも CloudTrail で見る。`kms:Sign` のセッション名が `gha-<run id>-<run attempt>` なので run まで辿れる。GitHub の監査ログはトークンの行いを App にしか紐付けない。

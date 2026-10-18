@@ -96,7 +96,7 @@ data "aws_iam_policy_document" "claude_code_trust" {
 
 # The parameter itself is deliberately not a resource here: the provider reads a
 # SecureString back on every refresh, which would land the token in HCP state.
-# It is written with the CLI instead — see the README's rotation steps.
+# It is written with the CLI instead — see the rotate-credential skill.
 data "aws_iam_policy_document" "claude_code" {
   statement {
     effect    = "Allow"

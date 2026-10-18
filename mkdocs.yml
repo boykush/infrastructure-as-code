@@ -1,0 +1,8 @@
+site_name: infrastructure-as-code
+docs_dir: docs
+nav:
+  - 概要: index.md
+  - 資格情報: credentials.md
+  - 費用と停止: cost.md
+plugins:
+  - techdocs-core

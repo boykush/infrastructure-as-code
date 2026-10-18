@@ -95,7 +95,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+  content_hash: sha256:1ea1bea4d5280682543baeadb1f2e9d6a2d91bd101d2d1789f2f1d754a0de666
 - kind: project-relative
   target: claude
   value: .claude/skills/add-mcp-server
@@ -113,7 +113,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+  content_hash: sha256:863c5dea56a0eab61b3d3fbe575b400ace19964166ce6a6acdb07aa7b7c48920
 - kind: project-relative
   target: claude
   value: .claude/skills/ade-rule-dsl
@@ -186,6 +186,114 @@ deployments:
   - boykush/ai-plugins/plugins/adr-remote-mcp
   active_owner: boykush/ai-plugins/plugins/adr-remote-mcp
   content_hash: sha256:7db35c60c4f6922baaf1118445ef6282dc4ed01454ea1ebab4ef6f358790eb67
+- kind: project-relative
+  target: claude
+  value: .claude/skills/cluster-debug
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/cluster-debug/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:822757a8294bdbac5febc51459f929101f03e628df7f3b90da58ed05cdf931e0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/local-setup
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/local-setup/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rebuild-cluster
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rebuild-cluster/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/recover-ci-role
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/recover-ci-role/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rotate-credential
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rotate-credential/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+- kind: project-relative
+  target: claude
+  value: .claude/skills/run-finlake-sync
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/run-finlake-sync/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00
 - kind: project-relative
   target: codex
   value: .agents/skills/ade-rule-dsl
@@ -293,7 +401,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
+  content_hash: sha256:1ea1bea4d5280682543baeadb1f2e9d6a2d91bd101d2d1789f2f1d754a0de666
 - kind: project-relative
   target: legacy
   value: .agents/skills/add-mcp-server
@@ -311,7 +419,115 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+  content_hash: sha256:863c5dea56a0eab61b3d3fbe575b400ace19964166ce6a6acdb07aa7b7c48920
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/cluster-debug
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/cluster-debug/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:822757a8294bdbac5febc51459f929101f03e628df7f3b90da58ed05cdf931e0
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/local-setup
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/local-setup/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/rebuild-cluster
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/rebuild-cluster/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/recover-ci-role
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/recover-ci-role/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/rotate-credential
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/rotate-credential/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/run-finlake-sync
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/run-finlake-sync/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00
 - kind: uri
   target: mcp
   value: adr
@@ -406,16 +622,52 @@ local_deployed_files:
 - .agents/skills/add-github-app/SKILL.md
 - .agents/skills/add-mcp-server
 - .agents/skills/add-mcp-server/SKILL.md
+- .agents/skills/cluster-debug
+- .agents/skills/cluster-debug/SKILL.md
+- .agents/skills/local-setup
+- .agents/skills/local-setup/SKILL.md
+- .agents/skills/rebuild-cluster
+- .agents/skills/rebuild-cluster/SKILL.md
+- .agents/skills/recover-ci-role
+- .agents/skills/recover-ci-role/SKILL.md
+- .agents/skills/rotate-credential
+- .agents/skills/rotate-credential/SKILL.md
+- .agents/skills/run-finlake-sync
+- .agents/skills/run-finlake-sync/SKILL.md
 - .claude/skills/add-claude-code-repo
 - .claude/skills/add-claude-code-repo/SKILL.md
 - .claude/skills/add-github-app
 - .claude/skills/add-github-app/SKILL.md
 - .claude/skills/add-mcp-server
 - .claude/skills/add-mcp-server/SKILL.md
+- .claude/skills/cluster-debug
+- .claude/skills/cluster-debug/SKILL.md
+- .claude/skills/local-setup
+- .claude/skills/local-setup/SKILL.md
+- .claude/skills/rebuild-cluster
+- .claude/skills/rebuild-cluster/SKILL.md
+- .claude/skills/recover-ci-role
+- .claude/skills/recover-ci-role/SKILL.md
+- .claude/skills/rotate-credential
+- .claude/skills/rotate-credential/SKILL.md
+- .claude/skills/run-finlake-sync
+- .claude/skills/run-finlake-sync/SKILL.md
 local_deployed_file_hashes:
   .agents/skills/add-claude-code-repo/SKILL.md: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
-  .agents/skills/add-github-app/SKILL.md: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
-  .agents/skills/add-mcp-server/SKILL.md: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+  .agents/skills/add-github-app/SKILL.md: sha256:1ea1bea4d5280682543baeadb1f2e9d6a2d91bd101d2d1789f2f1d754a0de666
+  .agents/skills/add-mcp-server/SKILL.md: sha256:863c5dea56a0eab61b3d3fbe575b400ace19964166ce6a6acdb07aa7b7c48920
+  .agents/skills/cluster-debug/SKILL.md: sha256:822757a8294bdbac5febc51459f929101f03e628df7f3b90da58ed05cdf931e0
+  .agents/skills/local-setup/SKILL.md: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
+  .agents/skills/rebuild-cluster/SKILL.md: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
+  .agents/skills/recover-ci-role/SKILL.md: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
+  .agents/skills/rotate-credential/SKILL.md: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  .agents/skills/run-finlake-sync/SKILL.md: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00
   .claude/skills/add-claude-code-repo/SKILL.md: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
-  .claude/skills/add-github-app/SKILL.md: sha256:52674fa041d1fdf37e2b3921d6b3af4e1bd7c65981cbe564f87f09f2cdaf4a11
-  .claude/skills/add-mcp-server/SKILL.md: sha256:0bfc41f76ecfc61594efba57e2fc806f906258ecb90bad63c6b39106662c98a2
+  .claude/skills/add-github-app/SKILL.md: sha256:1ea1bea4d5280682543baeadb1f2e9d6a2d91bd101d2d1789f2f1d754a0de666
+  .claude/skills/add-mcp-server/SKILL.md: sha256:863c5dea56a0eab61b3d3fbe575b400ace19964166ce6a6acdb07aa7b7c48920
+  .claude/skills/cluster-debug/SKILL.md: sha256:822757a8294bdbac5febc51459f929101f03e628df7f3b90da58ed05cdf931e0
+  .claude/skills/local-setup/SKILL.md: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
+  .claude/skills/rebuild-cluster/SKILL.md: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
+  .claude/skills/recover-ci-role/SKILL.md: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
+  .claude/skills/rotate-credential/SKILL.md: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  .claude/skills/run-finlake-sync/SKILL.md: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00
