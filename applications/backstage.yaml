@@ -1,4 +1,4 @@
-# Backstage over boykush/github-management's catalog, served at backstage.<domain>
+# Backstage over boykush's catalog (github-management's and each repository's), served at backstage.<domain>
 # through the tunnel. Guest sign-in is on and the permission policy is allow-all,
 # so Cloudflare Access (terraform/access.tf) is what keeps it to the owner.
 apiVersion: argoproj.io/v1alpha1
@@ -21,3 +21,11 @@ spec:
       prune: true
     syncOptions:
       - CreateNamespace=true
+    # The ExternalSecret here needs a CRD another Application installs, and on a
+    # new cluster the two sync in no order. A failed sync is otherwise final.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

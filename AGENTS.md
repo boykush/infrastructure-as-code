@@ -76,6 +76,8 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Backstage（`applications/backstage/`）
 
 - **catalog の中身は github-management が持つ**。こちら側が引き受けている分は `app-config.yaml` と `deployment.yaml` のコメントに、向こう側の契約は `catalog/all.yaml`・`catalog/app-config.yaml`・`catalog/Dockerfile`・`.github/workflows/catalog-image.yml` のコメントにある。catalog の形を変えるときは両方の repo を触る。
+- **repo ごとの entity は、その repo の `catalog-info.yaml` が持つ**（この repo の分は repo の root）。Backstage が GitHub Discovery で main から読む。書き方の決まりは github-management の AGENTS.md と `catalog/` のコメントにある。同じ entity を github-management と両方に書くと、片方が衝突のエラーになる。
+- **repo-reader App の権限を足さない**。鍵は Backstage の中にあり（取り出せる形）、App は owner の全 repo に install してある。足した権限は、そのまま全 repo に対する Backstage の権限になる。
 
 ## テレメトリー（`applications/otel-collector/`・`applications/jaeger/`）
 

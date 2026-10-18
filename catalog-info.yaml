@@ -1,0 +1,107 @@
+# This repository's entities in boykush's Backstage catalog, found on main by its
+# GitHub discovery (applications/backstage/app-config.yaml). How an entity is
+# written — which edges to draw, what a tag means — is set in github-management's
+# AGENTS.md and the comments atop its catalog/ files, which still hold the rest.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: infrastructure-as-code
+  description: >-
+    DOKS クラスタを Terraform で、その上のアプリを Argo CD で管理する repo。remote で動かすもの（MCP
+    サーバーなど）を載せ、Cloudflare Tunnel で公開する。image は各 repo が build し、ここは manifest だけを持つ。workload
+    の trace は OpenTelemetry Collector が受けて Jaeger へ流す。workflow が repo secret の代わりに使う資格（Claude
+    Code の token・GitHub App の鍵）の置き場と信頼も、ここが AWS に作る——どの repo が使えるかは terraform/variables.tf
+    の claude_code_repositories と github_apps が決める。Image Updater の書き戻しは、github-management が張る ruleset
+    の bypass に頼る
+  links:
+    - url: https://app.terraform.io/app/boykush/workspaces/infrastructure-as-code
+      title: HCP Terraform workspace
+      icon: dashboard
+    - url: https://argocd.boykush.com
+      title: Argo CD
+      icon: dashboard
+    - url: https://jaeger.boykush.com
+      title: Jaeger
+      icon: dashboard
+    - url: https://headlamp.boykush.com
+      title: Headlamp
+      icon: dashboard
+spec:
+  type: repository
+  lifecycle: production
+  owner: user:boykush
+  system: runtime
+  providesApis:
+    - jaeger-mcp
+  consumesApis:
+    - adr-mcp
+    - catalog-mcp
+    - jaeger-mcp
+  dependsOn:
+    - component:adr
+    - component:wiki
+    - component:github-management
+    - component:ai-plugins
+    - component:workflows
+    - resource:doks-cluster
+    - resource:cloudflare-tunnel
+    - resource:r2
+    - resource:hcp-terraform
+    - resource:ghcr
+    - resource:image-updater-app
+    - resource:repo-reader-app
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: jaeger-mcp
+  description: >-
+    クラスタの workload が出した trace を読む remote MCP サーバー。読み取り専用。ほかの MCP と違い Cloudflare
+    Access の内側にある——入口は Access の OAuth で、通るのは owner だけ。公開エンドポイントは
+    infrastructure-as-code が持つ
+  links:
+    - url: https://github.com/boykush/ai-plugins/blob/main/plugins/jaeger-remote-mcp/apm.yml
+      title: 接続先の持ち主（ai-plugins）
+      icon: github
+spec:
+  type: mcp-server
+  lifecycle: production
+  owner: user:boykush
+  system: runtime
+  remotes:
+    - type: streamable-http
+      url: https://jaeger-mcp.boykush.com/mcp
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: doks-cluster
+  description: DigitalOcean Kubernetes。remote で動かすものの実行基盤で、夜間は node を落とす
+spec:
+  type: kubernetes-cluster
+  owner: user:boykush
+  system: runtime
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cloudflare-tunnel
+  description: >-
+    cluster の中を公開する唯一の経路。どのホスト名を通すかは infrastructure-as-code の tunnel_routes が決め、owner
+    にしか開かないものには Cloudflare Access が前段に立つ
+spec:
+  type: network
+  owner: user:boykush
+  system: runtime
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: r2
+  description: >-
+    Cloudflare R2。finlake のデータレイクの置き場で、バケットは infrastructure-as-code の terraform/r2.tf
+    が作る。cluster の sync CronJob と MCP サーバーが同じ token で読み書きする
+spec:
+  type: object-storage
+  owner: user:boykush
+  system: runtime

@@ -1,7 +1,7 @@
 # boykush/backstage-app's image: create-app's output plus the AiResource kind,
 # and otherwise the official image's layout. Stateless — the database is the image's
-# in-memory SQLite and the catalog is copied in from its own image on every
-# start, so there is no volume to bill or back up.
+# in-memory SQLite, and the catalog is copied in from its own image and read from
+# each repository on every start, so there is no volume to bill or back up.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,9 +32,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # boykush/github-management builds the catalog into this image, so the
-        # cluster needs no credential for that private repository. Its digest is
-        # followed by Image Updater (imageupdater.yaml).
+        # boykush/github-management builds what it keeps of the catalog into this
+        # image: the owner, the systems, the App ledger. Its digest is followed by
+        # Image Updater (imageupdater.yaml).
         - name: catalog
           image: ghcr.io/boykush/github-management-catalog:main
           command: [cp, -R, /catalog/., /shared/]
@@ -121,6 +121,12 @@ spec:
             # on at startup, and none of them is here.
             - name: OTEL_NODE_RESOURCE_DETECTORS
               value: env,host,os
+            # The repo-reader App's key (externalsecret.yaml), read by app-config.yaml.
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github-app
+                  key: privateKey
           ports:
             - name: http
               containerPort: 7007
