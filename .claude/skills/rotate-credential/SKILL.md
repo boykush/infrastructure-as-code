@@ -46,6 +46,29 @@ mise exec -- kubectl -n finlake rollout restart deployment/mcp
 
 `sync` の CronJob と `mcp` が同じ Secret を読む。古い token は、両方が新しい値で動いてからダッシュボードで消す。
 
+### TechDocs の R2 token
+
+token は2つ。publish する CI 用と、Backstage が読む用で、置き場も別。人間に頼む：ダッシュボードの R2 → Manage API tokens で、対象をバケット `techdocs` だけに絞って、権限 Object Read & Write のもの（publish 用）と Object Read only のもの（Backstage 用）を作る。それぞれの Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を受け取る。
+
+publish 用は Parameter Store の `/techdocs/*` に置き、各 repo の workflow が role `github-actions-techdocs` で読む。クラスタには入れない。
+
+```sh
+mise run techdocs:secret endpoint
+mise run techdocs:secret access-key-id
+mise run techdocs:secret secret-access-key
+```
+
+Backstage 用はクラスタの Secret に入れる。Secret は optional で読んでいるので、無くても Backstage は起動し、Docs タブだけが開かない。
+
+```sh
+mise run cluster:secret backstage techdocs-r2 TECHDOCS_S3_ENDPOINT
+mise run cluster:secret backstage techdocs-r2 TECHDOCS_S3_ACCESS_KEY_ID
+mise run cluster:secret backstage techdocs-r2 TECHDOCS_S3_SECRET_ACCESS_KEY
+mise exec -- kubectl -n backstage rollout restart deployment/backstage
+```
+
+publish 用を入れ替えたら、どれかの repo の TechDocs workflow を `gh workflow run techdocs.yml` で流して通ることを確かめてから、古い token を消す。
+
 ### Image Updater の GitHub App
 
 Image Updater の git write-back には main への push 権限が要る。**PAT では通らない**——main の ruleset（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけ。App の id は github-management の ruleset module の bypass actor にも載っている必要がある。App に要る権限は Contents: write、install 先はこの repo だけ。

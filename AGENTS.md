@@ -76,6 +76,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## Backstage（`applications/backstage/`）
 
 - **catalog の中身は github-management が持つ**。こちら側が引き受けている分は `app-config.yaml` と `deployment.yaml` のコメントに、向こう側の契約は `catalog/all.yaml`・`catalog/app-config.yaml`・`catalog/Dockerfile`・`.github/workflows/catalog-image.yml` のコメントにある。catalog の形を変えるときは両方の repo を触る。
+- **TechDocs は Backstage の中で build しない**。公式 image に MkDocs が無いので、各 repo の CI（boykush/workflows の `techdocs.yml`）が build して R2 のバケット `techdocs` に置き、Backstage は読むだけ。repo を足すのは `techdocs_repositories` と github-management の catalog の `backstage.io/techdocs-ref` で、こちらの manifest は触らない。
 
 ## テレメトリー（`applications/otel-collector/`・`applications/jaeger/`）
 

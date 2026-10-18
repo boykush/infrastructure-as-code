@@ -1,0 +1,19 @@
+# Publishes docs/ to the Docs tab of this repository's Component in Backstage.
+# The reusable workflow in boykush/workflows does the build and the upload; its
+# README lists what adopting it takes.
+name: TechDocs
+
+on:
+  push:
+    branches: [main]
+    paths: [docs/**, mkdocs.yml]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  techdocs:
+    uses: boykush/workflows/.github/workflows/techdocs.yml@71085e851be3a356f9538745a5b08828e2b04fef
+    permissions:
+      contents: read
+      id-token: write

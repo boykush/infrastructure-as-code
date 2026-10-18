@@ -15,3 +15,15 @@ resource "cloudflare_r2_bucket" "finlake" {
   # caller, which for an apply from CI is a US runner.
   location = "apac"
 }
+
+# TechDocs sites, built in each documented repository's CI and read back by
+# Backstage (applications/backstage/app-config.yaml). One bucket for every
+# repository: the path inside it is the catalog entity, so adding a repository
+# adds no resource here. Its two tokens — read-write for the publishing role's
+# parameters, read-only for Backstage — are made in the dashboard, like
+# finlake's.
+resource "cloudflare_r2_bucket" "techdocs" {
+  account_id = local.account_id
+  name       = "techdocs"
+  location   = "apac"
+}

@@ -122,6 +122,13 @@ spec:
             # on at startup, and none of them is here.
             - name: OTEL_NODE_RESOURCE_DETECTORS
               value: env,host,os
+          # Read by the techdocs section of app-config.yaml. Optional so that a
+          # missing token costs only the Docs tabs, not the catalog the
+          # ai-review of every repository reads; the pod reads it at start.
+          envFrom:
+            - secretRef:
+                name: techdocs-r2
+                optional: true
           ports:
             - name: http
               containerPort: 7007

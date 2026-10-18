@@ -198,6 +198,31 @@ variable "claude_code_repositories" {
   }
 }
 
+variable "techdocs_repositories" {
+  type        = list(string)
+  description = "Repositories whose workflows may publish TechDocs to the techdocs R2 bucket, through boykush/workflows' techdocs workflow. Adding one here is the whole of onboarding it on this side."
+
+  default = [
+    "infrastructure-as-code",
+  ]
+
+  validation {
+    condition     = length(var.techdocs_repositories) == length(distinct(var.techdocs_repositories))
+    error_message = "Each repository can appear once: a duplicate only lengthens the trust policy."
+  }
+}
+
+variable "techdocs_parameter_path" {
+  type        = string
+  description = "Parameter Store path holding the R2 token TechDocs is published with, as <path>/endpoint, <path>/access-key-id and <path>/secret-access-key. Outside cluster_secrets_parameter_path: the cluster only reads the site, and with its own read-only token."
+  default     = "/techdocs"
+
+  validation {
+    condition     = startswith(var.techdocs_parameter_path, "/") && !endswith(var.techdocs_parameter_path, "/")
+    error_message = "techdocs_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+  }
+}
+
 variable "cluster_secrets_parameter_path" {
   type        = string
   description = "Parameter Store path External Secrets Operator may read. Each ExternalSecret names its parameters in full; by convention they are <path>/<namespace>/<secret>/<key>. The values are written with the CLI, never by Terraform."

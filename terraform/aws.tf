@@ -17,12 +17,14 @@ locals {
   # Both are paths, so what a policy names is everything under them.
   cluster_secrets_parameters_arn             = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.cluster_secrets_parameter_path}/*"
   external_secrets_credential_parameters_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.external_secrets_credential_parameter_path}/*"
+  techdocs_parameters_arn                    = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.techdocs_parameter_path}/*"
 
   # The roles below are named here rather than read off the resources, because
   # the policy CI applies with has to name them before they exist — see the
   # ordering note there. Same construction as the parameter ARNs above.
   external_secrets_role_name = "github-actions-external-secrets"
   external_secrets_user_name = "external-secrets"
+  techdocs_role_name         = "github-actions-techdocs"
   github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
@@ -32,6 +34,15 @@ locals {
     for repository in var.claude_code_repositories : [
       "repo:${var.github_owner}/${repository}:*",
       "repo:${var.github_owner}@${var.github_owner_id}/${repository}@*:*",
+    ]
+  ])
+
+  # Main only, like a main_only app: a branch's run could otherwise publish over
+  # the site its main branch built.
+  techdocs_subjects = flatten([
+    for repository in var.techdocs_repositories : [
+      "repo:${var.github_owner}/${repository}:ref:refs/heads/main",
+      "repo:${var.github_owner}@${var.github_owner_id}/${repository}@*:ref:refs/heads/main",
     ]
   ])
 
@@ -219,6 +230,58 @@ resource "aws_iam_role_policy" "github_app" {
   policy = data.aws_iam_policy_document.github_app[each.key].json
 }
 
+# The R2 token TechDocs is published with. R2 takes no OIDC, so the token is a
+# static key, and this role is what keeps it out of each repository's secrets.
+# It is one key for every listed repository: any of them can overwrite another's
+# site, which is the price of not minting a token per repository.
+data "aws_iam_policy_document" "techdocs_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.techdocs_subjects
+    }
+  }
+}
+
+# The parameters are written with the CLI (`mise run techdocs:secret`), not
+# here, for the same reason as the Claude Code token.
+data "aws_iam_policy_document" "techdocs" {
+  statement {
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [local.techdocs_parameters_arn]
+  }
+}
+
+resource "aws_iam_role" "techdocs" {
+  depends_on = [aws_iam_role_policy.terraform]
+
+  name               = local.techdocs_role_name
+  description        = "Read the R2 token TechDocs is published with, for boykush/workflows' techdocs workflow"
+  assume_role_policy = data.aws_iam_policy_document.techdocs_trust.json
+}
+
+resource "aws_iam_role_policy" "techdocs" {
+  name   = "read-techdocs-token"
+  role   = aws_iam_role.techdocs.id
+  policy = data.aws_iam_policy_document.techdocs.json
+}
+
 # What External Secrets Operator reads Parameter Store as. A user with an access
 # key, the one long-lived credential here, because nothing shorter is on offer:
 # the cluster signs its service account tokens as an in-cluster name
@@ -342,6 +405,7 @@ data "aws_iam_policy_document" "terraform" {
       aws_iam_role.terraform.arn,
       "arn:aws:iam::${local.aws_account_id}:role/${local.external_secrets_role_name}",
       "arn:aws:iam::${local.aws_account_id}:user/${local.external_secrets_user_name}",
+      "arn:aws:iam::${local.aws_account_id}:role/${local.techdocs_role_name}",
       ], [
       for name in values(local.github_app_role_names) :
       "arn:aws:iam::${local.aws_account_id}:role/${name}"

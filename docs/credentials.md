@@ -13,6 +13,7 @@
 | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
 | HCP Terraform の API token | HCP Terraform | repo secret `TF_API_TOKEN` | — |
 | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | `terraform/r2.tf` のコメント |
+| TechDocs の R2 token（publish 用・Backstage 用の2つ） | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | `terraform/r2.tf` のコメント |
 
 期限の無いもの——GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key——は、漏れたときと、元を作り直したときだけ入れ替える。手順は同じ skill にある。
 
