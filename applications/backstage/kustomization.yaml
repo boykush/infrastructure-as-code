@@ -22,9 +22,13 @@ configMapGenerator:
     files:
       - app-config.yaml
 
-# Image Updater rewrites this entry, pinning the digest behind the moving `main`
-# tag. The Backstage image itself is pinned by tag in deployment.yaml instead.
+# Image Updater rewrites these entries, pinning the digest behind the moving
+# `main` tag.
 images:
+  - name: ghcr.io/boykush/backstage-app
+    newName: ghcr.io/boykush/backstage-app
+    newTag: main
+    digest: sha256:588a1638a8a5fd63c3d5d3dc040501e16df04089fc4145dd632d9dc135db8e02
   - name: ghcr.io/boykush/github-management-catalog
     newName: ghcr.io/boykush/github-management-catalog
     newTag: main

@@ -1,5 +1,5 @@
-# The official image, which is what create-app generates, run as-is: our part
-# is only the config layered on top. Stateless — the database is the image's
+# boykush/backstage-app's image: create-app's output plus the AiResource kind,
+# and otherwise the official image's layout. Stateless — the database is the image's
 # in-memory SQLite and the catalog is copied in from its own image on every
 # start, so there is no volume to bill or back up.
 apiVersion: apps/v1
@@ -78,9 +78,8 @@ spec:
               memory: 256Mi
       containers:
         - name: backstage
-          # Image Updater follows only what an ImageUpdater CR names, so this tag
-          # is bumped by hand, like cloudflared's.
-          image: ghcr.io/backstage/backstage:1.55.0
+          # Followed by Image Updater (imageupdater.yaml), like the catalog image.
+          image: ghcr.io/boykush/backstage-app:main
           # Replaces the image's CMD to drop app-config.production.yaml, which
           # expects PostgreSQL; the base app-config.yaml keeps in-memory SQLite.
           args:
