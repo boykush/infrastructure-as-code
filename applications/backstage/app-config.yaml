@@ -59,6 +59,9 @@ catalog:
       boykush:
         organization: boykush
         catalogPath: /catalog-info.yaml
+        # Off by default, which emits a Location for every repository and leaves the
+        # catalog fetching a missing file from each, private ones by name.
+        validateLocationsExist: true
         schedule:
           frequency: { minutes: 30 }
           timeout: { minutes: 3 }
