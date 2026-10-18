@@ -6,8 +6,8 @@ doctl = "1.174.0"
 # Pinned to the cluster's minor track: kubectl supports only ±1 minor of skew,
 # and a machine-wide 1.30 client is too old to talk to DOKS 1.36.
 kubectl = "1.36.3"
-# Used by hand for the parameters and the key imports, and in CI by the Image
-# Updater Credential workflow — which reaches it as a shim, like every tool here.
+# Used by hand for the parameters and the key imports, and in CI by the External
+# Secrets Credential workflow — which reaches it as a shim, like every tool here.
 awscli = "2.37.3"
 
 # `aws login` writes a profile, so it needs somewhere to write. Pointing it at

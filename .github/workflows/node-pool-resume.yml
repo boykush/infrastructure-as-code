@@ -6,7 +6,7 @@ on:
   schedule:
     # Counted back from a 10:00 JST deadline: the worst delay measured here is
     # 3h02m, and with the 20 minute rollout budget on top that lands at 09:59.
-    # Minute :37 dodges the top of the hour. See the README.
+    # Minute :37 dodges the top of the hour. The delays are in docs/cost.md.
     - cron: "37 21 * * *" # 06:37 JST
   workflow_dispatch:
 

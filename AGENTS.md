@@ -1,6 +1,6 @@
 # AGENTS.md
 
-boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。構成値と1回きりの手順は README を、繰り返す手順は skill（`.apm/skills/`）を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
+boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。人間が判断に使うことは `docs/`（Backstage の TechDocs）を、手順は一度きりのものも含めて skill（`.apm/skills/`）を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
 
 ## レイアウト
 
@@ -21,14 +21,14 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **workspace を作り直したら Execution Mode を Local に戻す**。新規作成時の default は remote で、そのままだと HCP 側で実行され、DO token が無い環境で plan が落ちる。
 - provider の認証は `DIGITALOCEAN_ACCESS_TOKEN`。provider が優先して読むのは `DIGITALOCEAN_TOKEN` だが、doctl が読むのは `DIGITALOCEAN_ACCESS_TOKEN` だけなので、1変数で両方賄えるこちらに寄せている。
 - **`mise.toml` の `[env]` に手元専用の値を置けない**。shim が実行時に `[env]` を適用するので CI にも届く（`mise-action` の `env: false` でも回り込む）。`add_shims_to_path: false` で shim を外すと今度は tool が PATH から消えて `exit 127`——`export_path` だけでは raw のバイナリは載らない。
-- **bootstrap の apply は `-target` で AWS のリソースに絞る**。root module が1つなので素の plan は state 全体を refresh し、DO と Cloudflare の認証情報まで要求する。AWS のリソースはどちらにも依存していないので、targeting すればそれらの API は呼ばれない。残りは merge 後の CI の full apply が揃える。
-- **信頼を壊す変更はローカル apply でしか直せない**。role を作るのは Terraform 自身で、CI はその role で動くため。
+- **信頼を壊す変更はローカル apply でしか直せない**。role を作るのは Terraform 自身で、CI はその role で動くため。直すときは `-target` で role に絞る（skill `recover-ci-role`）。root module が1つなので、素の apply は state 全体を refresh し、DO と Cloudflare の認証情報まで要求する。
 
 ## ワークフロー
 
-- **ローカル apply はしない**。唯一の例外がクラスタの初回 bootstrap（CI の secret 登録より先にクラスタが要ったため）。
+- **ローカル apply はしない**。唯一の例外が、CI の role を直すとき。
+- **一度きりの操作も、手元ではなく一時 workflow で行う**。`workflow_dispatch` だけで起動するものを merge して動かし、済んだら消す（前例は `tunnel-import.yml`、`e924c33` で削除）。
 - **workflow には `permissions:` を書く**。owner 全体の既定が read に絞られている（github-management が配っている）ので、書かないと write が要る step だけが落ちる。
-- 残作業・TODO は **Issue で管理する**。README に書くのは現状の構成と手順だけで、作業項目のリストは置かない。
+- 残作業・TODO は **Issue で管理する**。`docs/` にも skill にも、作業項目のリストは置かない。
 - **repo は public だが、識別子は伏せない**。`sensitive` を付けるのは資格情報と個人情報だけ。UUID・account ID・endpoint のような識別子は、token が無ければ何も開けない。そのうえ `sensitive` が隠すのは差分と output の値だけで、resource の id は plan / apply の出力にそのまま出るので、付けても隠したことにならない。
 
 ## DOKS の勘所
@@ -54,6 +54,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **非公開の MCP（finlake・jaeger・catalog）は、route の `jwtAuth` を外さない**。Access は発行するだけで、検証するのは agentgateway——tunnel から来たことを信用しないので、Access を通らないクラスタ内の呼び出しもここで落ちる。サーバーにログインは無く、鍵はこの `jwtAuth` と、agentgateway 以外を止める各サーバーの NetworkPolicy だけ（Backstage は Access を通った cloudflared も通す）。どちらかを緩めると家計や trace、catalog がそのまま読める。
 - **非公開の MCP を足すときは、Access application `mcp` の `destinations` に載せる**（`terraform/access.tf`）。別の application を作ると AUD tag が別になり、agentgateway の `audiences` と合わなくなる。
 - **CI からの入口（`<name>-mcp-ci.<ドメイン>`）は Access の外に居る**。workflow はログインできないので、GitHub が run に発行する OIDC token を agentgateway が直に検証する。誰を通すかは route の `authorization` が名指しする repo だけで決まるので、`repository_owner` のような広い条件に替えない。全 repo から呼ばれる reusable workflow（ai-review）は、repo の代わりにその workflow を `job_workflow_ref` で名指しし、owner も併せて絞る——public な workflow は誰の repo からでも呼べる。
+- **Access の `oauth_configuration` を変えたら数分待つ**。反映されるまで metadata に `registration_endpoint` が載らず、クライアントは `does not support dynamic client registration` で落ちる。
 - **Cloudflare 側の HTTP Host Header 書き換えは使わない**。Deployment が渡す `--allowed-host` が入った時点で不要になった、一時期の回避策。
 - **公開ホスト名は `<name>-mcp.<ドメイン>`**。エンドポイントのパスはどのサーバーも `/mcp` 固定なので、サーバーを区別できるのはホスト名だけ。総称の `mcp.<ドメイン>` を1つ目に取らせると2つ目で詰まる。2階層（`<name>.mcp.<ドメイン>`）は Cloudflare の Universal SSL が覆わない。
 - **tunnel の先は agentgateway で、サーバーではない**。agentgateway は後ろへ送るとき Host をクラスタ内の Service 名にするので、Host を検証するサーバー（scraps）はその名前も許可しておく——無いと 403 になる。

@@ -9,7 +9,7 @@ resource "cloudflare_zero_trust_access_identity_provider" "github" {
   type       = "github"
   config = {
     # From an OAuth App made by hand, since GitHub has no API that creates one;
-    # its settings are in the README.
+    # how it is set up is in the rotate-credential skill.
     client_id     = "Ov23liNRRpwEqG6CDncj"
     client_secret = var.access_github_client_secret
   }
