@@ -275,7 +275,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  content_hash: sha256:73b72a5f6993d8c573a7722d54638ec844b6b120c8e277fb36e2c6b246af5f06
 - kind: project-relative
   target: claude
   value: .claude/skills/run-finlake-sync
@@ -509,7 +509,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  content_hash: sha256:73b72a5f6993d8c573a7722d54638ec844b6b120c8e277fb36e2c6b246af5f06
 - kind: project-relative
   target: legacy
   value: .agents/skills/run-finlake-sync
@@ -660,7 +660,7 @@ local_deployed_file_hashes:
   .agents/skills/local-setup/SKILL.md: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
   .agents/skills/rebuild-cluster/SKILL.md: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
   .agents/skills/recover-ci-role/SKILL.md: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
-  .agents/skills/rotate-credential/SKILL.md: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  .agents/skills/rotate-credential/SKILL.md: sha256:73b72a5f6993d8c573a7722d54638ec844b6b120c8e277fb36e2c6b246af5f06
   .agents/skills/run-finlake-sync/SKILL.md: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00
   .claude/skills/add-claude-code-repo/SKILL.md: sha256:65057d5a6e0d3bcb962d77273b07b707396e839f17ff44754bd1f33bd912e754
   .claude/skills/add-github-app/SKILL.md: sha256:1ea1bea4d5280682543baeadb1f2e9d6a2d91bd101d2d1789f2f1d754a0de666
@@ -669,5 +669,5 @@ local_deployed_file_hashes:
   .claude/skills/local-setup/SKILL.md: sha256:9bd9298fa9cc29d6c5dcfd88032405218e5a58d6ed7c36e8d56cc65be92b2ff3
   .claude/skills/rebuild-cluster/SKILL.md: sha256:eca6f1f7e40e8c84cb58c766a3b2e359b4043827e0f2748aedc534f2e38f0db7
   .claude/skills/recover-ci-role/SKILL.md: sha256:84ab7fd56808a678c6cbce795e5d7b6d0e5521067d7c81aee6b98253ab9ee6e0
-  .claude/skills/rotate-credential/SKILL.md: sha256:2a1090bda606b0b26e56da7cebd88157df58a5d83aa7b99a0d1f53314a115d77
+  .claude/skills/rotate-credential/SKILL.md: sha256:73b72a5f6993d8c573a7722d54638ec844b6b120c8e277fb36e2c6b246af5f06
   .claude/skills/run-finlake-sync/SKILL.md: sha256:7ad47fd17a3e554568a3814a49edcf76c8d68c963a58377f79cb385963f4af00

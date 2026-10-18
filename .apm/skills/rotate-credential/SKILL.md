@@ -62,6 +62,18 @@ mise run cluster:secret argocd image-updater-git-creds githubAppPrivateKey < <ap
 - 鍵を入れ替えるときは、App に新しい鍵を足す → 入れる → 反映を確かめる → 古い鍵を App から revoke、の順なら止まる時間ができない。入れ終えたら手元の PEM を消してもらう。
 - Secret が無いと、Image Updater は Pod が落ちないまま `could not get creds for repo` をログに出し続ける。digest が動かないときは、まずここを見る。
 
+### Backstage の repo-reader App
+
+Backstage が各 repo の `catalog-info.yaml` を読む App（Contents と Metadata の read だけ、全 repo に install）。Backstage は自分で JWT に署名するので、この鍵は KMS に入れない。App ID と Client ID は識別子なので `applications/backstage/app-config.yaml` に直接書いてある。
+
+```sh
+mise run cluster:secret backstage backstage-github-app privateKey < <app>.private-key.pem
+mise exec -- kubectl -n backstage rollout restart deployment/backstage
+```
+
+- 入れ替えるときは、App に新しい鍵を足す → 入れる → catalog が読めているのを確かめる → 古い鍵を App から revoke、の順。入れ終えたら手元の PEM を消してもらう。
+- 鍵が無いと Backstage は起動しない（`CreateContainerConfigError`）。鍵が古いと起動はするが、Discovery が 401 を出し、repo の entity が増えも減りもしなくなる。
+
 ## Claude Code のトークン
 
 有効期間は1年。期限が近いとき、漏れたかもしれないときに入れ替える。

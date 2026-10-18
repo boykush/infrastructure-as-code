@@ -7,6 +7,7 @@ resources:
   - imageupdater.yaml
   - rbac.yaml
   - networkpolicy.yaml
+  - externalsecret.yaml
 
 # What github-management's catalog finds this workload by, on the Deployments
 # and Jobs as well as on their pods: the Kubernetes tab lists only the owners
