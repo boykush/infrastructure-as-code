@@ -13,6 +13,8 @@ metadata:
     Code の token・GitHub App の鍵）の置き場と信頼も、ここが AWS に作る——どの repo が使えるかは terraform/variables.tf
     の claude_code_repositories と github_apps が決める。Image Updater の書き戻しは、github-management が張る ruleset
     の bypass に頼る
+  annotations:
+    backstage.io/techdocs-ref: dir:.
   links:
     - url: https://app.terraform.io/app/boykush/workspaces/infrastructure-as-code
       title: HCP Terraform workspace
