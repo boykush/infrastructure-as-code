@@ -125,6 +125,18 @@ catalog:
           frequency: { minutes: 30 }
           timeout: { minutes: 3 }
 
+# Docs are built inside the backend with the MkDocs the image carries: the pod
+# has no Docker for the default. What is built lands under /tmp, the only place
+# it writes, so a restart forgets it and the next visit builds it again.
+techdocs:
+  builder: local
+  generator:
+    runIn: local
+  publisher:
+    type: local
+    local:
+      publishDirectory: /tmp/techdocs
+
 # The Kubernetes tab on an entity. The catalog picks the workloads by label
 # (backstage.io/kubernetes-label-selector); this says only where to look. With
 # no serviceAccountToken, the plugin uses the mounted one (rbac.yaml).
