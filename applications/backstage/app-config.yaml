@@ -1,11 +1,67 @@
 # Layered over the image's app-config.yaml (the create-app defaults). Served at
 # the tunnel hostname, behind Cloudflare Access (terraform/access.tf).
-# app.extensions is absent on purpose: boykush/github-management holds it in
-# /catalog/app-config.yaml, layered after this file, and an array written in
-# both would have one replace the other.
 app:
   title: boykush catalog
   baseUrl: https://backstage.boykush.com
+  # What the screens show. An array layered over another replaces it whole, so
+  # every extension is listed here and nowhere else.
+  extensions:
+    # Replaces create-app's list, so putting the catalog at / is written again.
+    - page:catalog:
+        config:
+          path: /
+    # Rooted at the owner of every entity, so it reaches all of them without a
+    # repository named. A new kind goes into selectedKinds as well: passing the
+    # catalog's rules does not put it on the graph.
+    - page:catalog-graph:
+        config:
+          rootEntityRefs: [user:default/boykush]
+          selectedKinds: [user, component, api, system, resource, airesource]
+          selectedRelations: [ownerOf, ownedBy, dependsOn, dependencyOf, providesApi, apiProvidedBy, consumesApi, apiConsumedBy, partOf, hasPart]
+          unidirectional: false
+          mergeRelations: true
+          direction: LR
+    # Home holds only the consoles no entity leads to; other links go on the
+    # entity they belong to. Nothing saved per user: the in-memory database
+    # forgets it on every restart.
+    - page:home:
+        config:
+          defaultConfig:
+            - component: HomePageToolkit
+              column: 0
+              row: 0
+              width: 12
+              height: 3
+    # An icon works only as a key boykush/backstage-app registers (no brand
+    # logos); any other key shows the generic link picture.
+    - home-page-widget:home/toolkit:
+        config:
+          tools:
+            - url: https://argocd.boykush.com
+              label: Argo CD
+              icon: dashboard
+            - url: https://jaeger.boykush.com
+              label: Jaeger
+              icon: search
+            - url: https://app.terraform.io/app/boykush/workspaces
+              label: HCP Terraform
+              icon: kind:resource
+            - url: https://cloud.digitalocean.com/kubernetes/clusters
+              label: DigitalOcean
+              icon: kind:location
+            - url: https://dash.cloudflare.com
+              label: Cloudflare
+              icon: kind:domain
+            - url: https://console.aws.amazon.com
+              label: AWS
+              icon: kind:system
+            - url: https://github.com/boykush?tab=repositories
+              label: GitHub
+              icon: github
+    # The Welcome card is compiled into the image; these three show by default.
+    - home-page-widget:home/getting-started: false
+    - home-page-widget:home/random-joke: false
+    - home-page-widget:home/world-clock: false
 organization:
   name: boykush
 backend:
