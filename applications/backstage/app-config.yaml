@@ -83,11 +83,6 @@ auth:
       # Safe only because Cloudflare Access lets no one but the owner reach the
       # pages that sign in.
       dangerouslyAllowOutsideDevelopment: true
-# The contract boykush/github-management states in the comments on catalog/all.yaml
-# and catalog/Dockerfile: the catalog image puts its entry at /catalog/all.yaml, and
-# the kinds the image's defaults leave out (User, AiResource) must be allowed on that
-# location. Rules are matched against the entry location, so this covers every file
-# it pulls in.
 # Read as the repo-reader GitHub App: contents and metadata, read-only, on every
 # repository of the owner. Unauthenticated, the catalog's refreshes alone would
 # overrun GitHub's 60 requests an hour. Only installation tokens are used, so the
@@ -103,13 +98,21 @@ integrations:
           allowedInstallationOwners: [boykush]
 
 catalog:
-  # Entities come only from github-management and from the repositories' own
-  # catalog-info.yaml: registering a location is refused, and a deleted entity is
-  # read back from where it came from within minutes.
+  # Entities come only from the repositories' own catalog-info.yaml: registering
+  # a location is refused, and a deleted entity is read back from where it came
+  # from within minutes.
   readonly: true
+  # Restates the image's defaults, since this list replaces them. User is let in
+  # only from github-management, whose catalog/ holds the owner (and whose
+  # catalog-info.yaml points there).
+  rules:
+    - allow: [Component, System, API, Resource, Location]
+    - allow: [User]
+      locations:
+        - type: url
+          pattern: https://github.com/boykush/github-management/**
   # Every repository with a catalog-info.yaml on its default branch, so none is
-  # listed here. The default rules let these through as Component, API,
-  # Resource, System or Location.
+  # listed here.
   providers:
     github:
       boykush:
@@ -121,11 +124,6 @@ catalog:
         schedule:
           frequency: { minutes: 30 }
           timeout: { minutes: 3 }
-  locations:
-    - type: file
-      target: /catalog/all.yaml
-      rules:
-        - allow: [User, AiResource]
 
 # The Kubernetes tab on an entity. The catalog picks the workloads by label
 # (backstage.io/kubernetes-label-selector); this says only where to look. With
