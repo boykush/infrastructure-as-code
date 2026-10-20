@@ -1,7 +1,7 @@
 # boykush/backstage-app's image: create-app's output plus the AiResource kind,
 # and otherwise the official image's layout. Stateless — the database is the image's
-# in-memory SQLite, and the catalog is copied in from its own image and read from
-# each repository on every start, so there is no volume to bill or back up.
+# in-memory SQLite, and the catalog is read from each repository on every
+# start, so there is no volume to bill or back up.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,26 +32,6 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # boykush/github-management builds what it keeps of the catalog into this
-        # image: the owner, the systems, the App ledger. Its digest is followed by
-        # Image Updater (imageupdater.yaml).
-        - name: catalog
-          image: ghcr.io/boykush/github-management-catalog:main
-          command: [cp, -R, /catalog/., /shared/]
-          volumeMounts:
-            - name: catalog
-              mountPath: /shared
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              memory: 32Mi
         # Backstage makes a span for every MCP tool call, but its image carries
         # OpenTelemetry's API without an SDK, so they go nowhere. This is what
         # the OpenTelemetry Operator injects for Node.js, copied in by hand: an
@@ -78,7 +58,7 @@ spec:
               memory: 256Mi
       containers:
         - name: backstage
-          # Followed by Image Updater (imageupdater.yaml), like the catalog image.
+          # Followed by Image Updater (imageupdater.yaml).
           image: ghcr.io/boykush/backstage-app:main
           # Replaces the image's CMD to drop app-config.production.yaml, which
           # expects PostgreSQL; the base app-config.yaml keeps in-memory SQLite.
@@ -147,9 +127,6 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
-            - name: catalog
-              mountPath: /catalog
-              readOnly: true
             - name: otel-instrumentation
               mountPath: /otel-auto-instrumentation-nodejs
               readOnly: true
@@ -175,9 +152,6 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
-        - name: catalog
-          emptyDir:
-            sizeLimit: 16Mi
         - name: otel-instrumentation
           emptyDir:
             sizeLimit: 256Mi
