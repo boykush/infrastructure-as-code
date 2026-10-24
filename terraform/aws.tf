@@ -48,6 +48,11 @@ locals {
   # Both spellings again, this time grouped by the app each repository may sign
   # as. A repository can appear under more than one app; the reverse — one role
   # over several apps — is what the grouping exists to prevent.
+  github_apps_by_name = { for app in var.github_apps : app.name => app }
+
+  # dependabot[bot]. An account id is never reused, unlike the name it carries.
+  dependabot_actor_id = "49699333"
+
   github_app_subjects = {
     for app in var.github_apps : app.name => flatten([
       for repository in app.repositories : [
@@ -177,6 +182,56 @@ data "aws_iam_policy_document" "github_app_trust" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values   = each.value
+    }
+  }
+
+  # Any owned repository, since Dependabot reaches them all; what narrows it is who
+  # woke the run and the one file of boykush/workflows it signs from.
+  dynamic "statement" {
+    for_each = local.github_apps_by_name[each.key].dependabot_workflow == null ? [] : [local.github_apps_by_name[each.key].dependabot_workflow]
+
+    content {
+      effect  = "Allow"
+      actions = ["sts:AssumeRoleWithWebIdentity"]
+
+      principals {
+        type        = "Federated"
+        identifiers = [aws_iam_openid_connect_provider.github.arn]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "token.actions.githubusercontent.com:aud"
+        values   = ["sts.amazonaws.com"]
+      }
+
+      condition {
+        test     = "StringLike"
+        variable = "token.actions.githubusercontent.com:sub"
+        values = [
+          "repo:${var.github_owner}/*:pull_request",
+          "repo:${var.github_owner}@${var.github_owner_id}/*:pull_request",
+        ]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "token.actions.githubusercontent.com:repository_owner_id"
+        values   = [tostring(var.github_owner_id)]
+      }
+
+      condition {
+        test     = "StringEquals"
+        variable = "token.actions.githubusercontent.com:actor_id"
+        values   = [local.dependabot_actor_id]
+      }
+
+      # Any ref: callers pin a SHA, and the pin is github-management's, not the PR's.
+      condition {
+        test     = "StringLike"
+        variable = "token.actions.githubusercontent.com:job_workflow_ref"
+        values   = ["${var.github_owner}/workflows/${statement.value}@*"]
+      }
     }
   }
 }
