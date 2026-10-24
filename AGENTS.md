@@ -1,6 +1,6 @@
 # AGENTS.md
 
-boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。人間が判断に使うことは `docs/`（Backstage の TechDocs）を、手順は一度きりのものも含めて skill（`.apm/skills/`）を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
+boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC リポジトリ。DOKS クラスタを Terraform（`digitalocean/digitalocean` provider）で、その上のアプリケーションを Argo CD で管理する。手順は一度きりのものも含めて skill（`.apm/skills/`）を、個々のファイルの制約とその理由はそのファイルのコメントを見る。ここに書くのは、どれか1つのファイルには収まらないもの——横断する禁止、踏んだ失敗、他の repo との契約——だけ。
 
 ## レイアウト
 
@@ -28,7 +28,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **ローカル apply はしない**。唯一の例外が、CI の role を直すとき。
 - **一度きりの操作も、手元ではなく一時 workflow で行う**。`workflow_dispatch` だけで起動するものを merge して動かし、済んだら消す（前例は `tunnel-import.yml`、`e924c33` で削除）。
 - **workflow には `permissions:` を書く**。owner 全体の既定が read に絞られている（github-management が配っている）ので、書かないと write が要る step だけが落ちる。
-- 残作業・TODO は **Issue で管理する**。`docs/` にも skill にも、作業項目のリストは置かない。
+- 残作業・TODO は **Issue で管理する**。README にも skill にも、作業項目のリストは置かない。
 - **repo は public だが、識別子は伏せない**。`sensitive` を付けるのは資格情報と個人情報だけ。UUID・account ID・endpoint のような識別子は、token が無ければ何も開けない。そのうえ `sensitive` が隠すのは差分と output の値だけで、resource の id は plan / apply の出力にそのまま出るので、付けても隠したことにならない。
 
 ## DOKS の勘所
@@ -37,7 +37,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **新規作成できるのは最新3 minor だけ**（窓を過ぎた version は既存クラスタは動き続けるが新規作成不可）。現行は 1.34 / 1.35 / 1.36。手元での確認は `doctl kubernetes options versions`。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
 - **pod から AWS へは federation できない**。ServiceAccount token の issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、DOKS では変えられず、AWS から検証できない。External Secrets Operator が role ではなく access key で動いているのはこのため。
-- `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
+- `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。ただし**素の destroy はしない**。root module が1つなので KMS の鍵まで消え、GitHub App の鍵を失う。止めるときは `-target=digitalocean_kubernetes_cluster.this` で絞る。
 
 ## Argo CD
 
@@ -87,6 +87,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 
 ## AWS の認証情報（`terraform/aws.tf`）
 
+- **AWS に置くのは、organization secret が無いから**。`boykush` は User アカウントなので、repo secret だと同じ資格情報を repo の数だけ置いて入れ替えることになる。各 repo の workflow は run の OIDC で読み、GitHub に長命な秘密は残らない。ただし run 中は runner に値が載るので、run 中に漏れるリスクは repo secret と変わらない。
 - **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
 - **トークンに改行を混ぜない**。`::add-mask::` は行単位に効くので、改行が残ると**2行目が public repo のログに出る**——一度踏んだ。`mise run claude:token` が空白を落とすのはこのため。
 - **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。

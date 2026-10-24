@@ -7,7 +7,17 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
 
 ## 前提
 
-- 何を人間が発行し、どこに置くかは `docs/credentials.md`。値の発行（GUI・`claude setup-token`）だけは人間に頼む。それ以外はここに沿って進める。
+- 値の発行（GUI・`claude setup-token`）だけは人間に頼む。それ以外はここに沿って進める。期限が来るたびに発行し直すのは下の表のもの。期限の日付は各コンソールが表示しているので、どこにも書かない。
+
+  | 値 | 発行する場所 | 置き場 | 要る権限 |
+  | --- | --- | --- | --- |
+  | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
+  | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
+  | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
+  | HCP Terraform の API token | HCP Terraform | repo secret `TF_API_TOKEN` | — |
+  | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
+
+- 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
 - AWS に書くものは、先に `mise exec -- aws login` を頼む（ブラウザが開いてパスキーで通る）。`mise exec -- aws sts get-caller-identity` が account id を返せば通っている。
 - **値を Terraform に通さない**（state に平文が載る）。書くのは mise の task だけ。
 - 値を端末に出さない。貼ってもらうときは stdin に貼って Ctrl-D。

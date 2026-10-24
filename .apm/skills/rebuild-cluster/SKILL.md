@@ -7,7 +7,7 @@ description: DOKS クラスタを消した後、または作り直したとき�
 
 ## 前提
 
-- 何がどの順に依存しているかは `docs/credentials.md` の「信頼の鎖」。
+- 戻る順は下の手順の順そのもの：クラスタ → Argo CD → External Secrets Operator の鍵 → 残りの Secret。operator は自分の鍵だけは取れないので、そこだけ workflow で入れる。
 - **手元からは apply しない。** クラスタ本体は CI の apply が作る。Argo CD の bootstrap のような一度きりの操作も、一時 workflow で行い、済んだら消す。
 - 消すときは `-target=digitalocean_kubernetes_cluster.this` で絞ったはず。素の destroy だった場合は KMS の鍵も消えているので、App ごとに skill `add-github-app` の「鍵を入れ替える」をやり直す。
 

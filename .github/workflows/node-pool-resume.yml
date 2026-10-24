@@ -4,9 +4,10 @@ name: Node Pool Resume
 # the half of the pair that can fail in a way worth noticing.
 on:
   schedule:
-    # Counted back from a 10:00 JST deadline: the worst delay measured here is
-    # 3h02m, and with the 20 minute rollout budget on top that lands at 09:59.
-    # Minute :37 dodges the top of the hour. The delays are in docs/cost.md.
+    # Counted back from a 10:00 JST deadline: the worst schedule delay seen is
+    # 3h02m (park's, 2026-09-13; resume's was 1h48m), and with the 20 minute
+    # rollout budget on top that lands at 09:59. Minute :37 dodges the top of
+    # the hour.
     - cron: "37 21 * * *" # 06:37 JST
   workflow_dispatch:
 
@@ -44,7 +45,8 @@ jobs:
       # The rollout is the whole gate. Waiting on a Ready node first looked
       # safer but was worse: a node being deleted still reports Ready, so the
       # check passed against the outgoing node. Rollout cannot be fooled that
-      # way, and 20 minutes covers provision, join and the first GHCR pull.
+      # way, and 20 minutes covers provision, join and the first GHCR pull
+      # (11m17s from a deleted node, 3m41s on a usual morning; 2026-09).
       - name: Wait for the endpoint to come back
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
