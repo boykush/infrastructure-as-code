@@ -2,7 +2,7 @@
 
 ## 覚えておくこと
 
-- 費用は月 $25〜28 で、ほとんどが worker node 代。夜間停止で浮くのは月 $0.4〜3.7。
+- 費用は月 $25〜28 で、ほとんどが DOKS（DigitalOcean Kubernetes）の node 代。夜間停止で浮くのは月 $0.4〜3.7。
 - 止めている間は、公開しているものが全部落ちる。MCP と Backstage も含む。
 - 長く止めるときに、素の `terraform destroy` はしない。GitHub App の鍵まで消える。
 
@@ -12,12 +12,12 @@
 
 | 内訳 | 月額 | 額を決めているもの |
 | --- | --- | --- |
-| worker node | $20.35〜23.57 | `terraform/variables.tf` の `node_size`（$24/月）と夜間停止 |
+| DOKS の worker node | $20.35〜23.57 | `terraform/variables.tf` の `node_size`（$24/月）と夜間停止 |
 | KMS の key | $4 | 1本 $1。本数は `terraform/variables.tf` の `github_apps` |
 | Jaeger の volume | $0.10 | $0.10/GiB。サイズは `applications/jaeger/pvc.yaml` |
 | 合計 | 約 $25〜28 | |
 
-ほかは $0。control plane・VPC・IAM・Parameter Store は無料で、R2 と outbound 転送は無料枠に収まる。公開は Cloudflare Tunnel なので、Load Balancer も無い。
+ほかは $0。DOKS の control plane・VPC・IAM・Parameter Store は無料で、R2 と outbound 転送は無料枠に収まる。公開は Cloudflare Tunnel なので、Load Balancer も無い。
 
 node は秒課金だが、月 672 時間（28 日）で頭打ちになる。だから月 48 時間までの停止は請求に効かない。volume は node を止めても課金が続く。
 
