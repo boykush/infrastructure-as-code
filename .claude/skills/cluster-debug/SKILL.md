@@ -22,7 +22,7 @@ port は各 app の `service.yaml`。開くときに気をつけるもの：
 
 ## 前段が怪しいとき
 
-- **530**：cloudflared が居ない。夜間停止中なら正常（`docs/cost.md`）。
+- **530**：cloudflared が居ない。夜間停止中なら正常（`node-pool-park.yml`）。
 - **`CreateContainerConfigError`**：Secret が無い。skill `rotate-credential`。
 - **非公開の MCP が 401**：agentgateway が token を落としている。人が使うエージェントなら Access の再認証（クライアントの `/mcp`）、workflow なら route の `authorization` に repo が載っているか（`applications/agentgateway/config.yaml`）。
 - **scraps が 403 `Forbidden: Host header is not allowed`**：Deployment の `--allowed-host` に公開ホスト名かクラスタ内の Service 名が無い。

@@ -46,6 +46,6 @@ flowchart LR
 - External Secrets Operator は、自分の鍵だけは取れない。クラスタは AWS が検証できない issuer で ServiceAccount token に署名するので、operator は role ではなく access key で読む。その鍵は workflow `external-secrets-credential.yml` が入れる。クラスタを作り直したら、まずこれを1回動かす。ほかの Secret は operator が全部戻す。
 - 入る順は Argo CD → External Secrets Operator → 各アプリ。`argocd/` は operator の CRD より先に入るので、そこには Secret を置かない。
 - Terraform の state には秘密を載せない。state は HCP にあり、`aws_ssm_parameter` や `aws_iam_access_key` を resource にすると平文で載る。だから値は Terraform を通さず、mise の task が CLI で書く。
-- KMS の鍵は、消しても待機期間（30 日）の間は戻せる。`aws_kms_external_key` が `deletion_window_in_days` を指定していないので既定の 30 日で、その間に削除を取り消して有効にし直せばよい。期間が明けると鍵の中身はどこからも読み出せず、App 側で鍵を作り直して入れ直すしかない。素の `terraform destroy` はこの鍵も消す（→ [費用と停止](cost.md)）。
+- KMS の鍵は、消しても待機期間（30 日）の間は戻せる。`aws_kms_external_key` が `deletion_window_in_days` を指定していないので既定の 30 日で、その間に削除を取り消して有効にし直せばよい。期間が明けると鍵の中身はどこからも読み出せず、App 側で鍵を作り直して入れ直すしかない。素の `terraform destroy` はこの鍵も消す。
 
 作り直す手順は skill `rebuild-cluster`。

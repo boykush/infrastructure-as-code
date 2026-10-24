@@ -7,7 +7,7 @@ description: GitHub App の private key を AWS KMS に入れ、指定した rep
 
 ## 前提
 
-- なぜ KMS に入れるかは `terraform/aws.tf` のコメント、どの App があるかは `terraform/variables.tf` の `github_apps` にある。費用は key 1本 $1/月（`docs/cost.md`）。鍵を Terraform に通さない・role を App ごとに分ける・CI に足さない権限は AGENTS.md の「AWS の認証情報」節にある。
+- なぜ KMS に入れるかは `terraform/aws.tf` のコメント、どの App があるかは `terraform/variables.tf` の `github_apps` にある。費用は key 1本 $1/月。鍵を Terraform に通さない・role を App ごとに分ける・CI に足さない権限は AGENTS.md の「AWS の認証情報」節にある。
 - `image-updater` の App は対象外（鍵がクラスタに要るので KMS に入れられない）。`mise run cluster:secret` で Parameter Store に入れる。
 
 ## App を1つ入れる

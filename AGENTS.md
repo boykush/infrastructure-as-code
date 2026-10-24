@@ -37,7 +37,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 - **新規作成できるのは最新3 minor だけ**（窓を過ぎた version は既存クラスタは動き続けるが新規作成不可）。現行は 1.34 / 1.35 / 1.36。手元での確認は `doctl kubernetes options versions`。
 - **置換系の変更に注意**: VPC の `ip_range` は作成後変更不可（変えると VPC 置換 → クラスタも置換）。cluster の `region` / node pool の `name` も同様。
 - **pod から AWS へは federation できない**。ServiceAccount token の issuer がクラスタ内の名前（`kubernetes.default.svc.cluster.local`）で、DOKS では変えられず、AWS から検証できない。External Secrets Operator が role ではなく access key で動いているのはこのため。
-- `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。
+- `prevent_destroy` は**あえて付けていない**。中身は GitOps で作り直せるので、使わない期間に `terraform destroy` で課金を止められる方を優先した。ただし**素の destroy はしない**。root module が1つなので KMS の鍵まで消え、GitHub App の鍵を失う。止めるときは `-target=digitalocean_kubernetes_cluster.this` で絞る。
 
 ## Argo CD
 
