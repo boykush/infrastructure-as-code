@@ -229,6 +229,10 @@ variable "github_apps" {
     # wakes executes that branch's own copy of the workflows, so trusting every
     # ref hands the signature to whatever can push a branch there.
     main_only = optional(bool, false)
+    # Also trusts a run Dependabot wakes in any of the owner's repositories, but only
+    # inside this reusable workflow of boykush/workflows, which neither checks out nor
+    # runs the pull request's code. Its path in that repository; null for none.
+    dependabot_workflow = optional(string)
   }))
   description = "GitHub Apps whose private key is imported into KMS, each with the repositories whose workflows may sign as it. What a repository is trusted with is the signature, never the key."
 
@@ -246,19 +250,23 @@ variable "github_apps" {
     # the report PR it has just opened; each only from its main branch. The
     # owner's own PRs get their approval from ai-review as the Claude GitHub
     # App, or go in through the owner's bypass.
+    # Dependabot's security updates are approved by dependabot-merge.
     {
-      name         = "pr-approver"
-      repositories = ["renovate-runner", "livt"]
-      main_only    = true
+      name                = "pr-approver"
+      repositories        = ["renovate-runner", "livt"]
+      main_only           = true
+      dependabot_workflow = ".github/workflows/dependabot-merge.yml"
     },
     # Writes to a repository its workflow is not running in — pushing a branch
     # and opening a pull request that, unlike one from GITHUB_TOKEN, starts the
     # checks a ruleset requires. Its permissions stay at contents and
     # pull-requests: a shared write credential that accretes them is a master
     # key. The list is who may sign; where a write lands is where it is installed.
+    # dependabot-merge turns on auto-merge with it too.
     {
-      name         = "repo-writer"
-      repositories = ["livt", "scraps"]
+      name                = "repo-writer"
+      repositories        = ["livt", "scraps"]
+      dependabot_workflow = ".github/workflows/dependabot-merge.yml"
     },
   ]
 
