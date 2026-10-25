@@ -9,6 +9,9 @@ kubectl = "1.36.3"
 # Used by hand for the parameters and the key imports, and in CI by the External
 # Secrets Credential workflow — which reaches it as a shim, like every tool here.
 awscli = "2.37.3"
+# The misconfiguration scan of terraform/ and the manifests: CI runs it in
+# .github/workflows/trivy.yml, and `trivy config .` runs the same by hand.
+trivy = "0.75.0"
 
 # `aws login` writes a profile, so it needs somewhere to write. Pointing it at
 # the repo keeps the machine-wide ~/.aws/config untouched, and pinning the

@@ -1,0 +1,40 @@
+name: trivy
+
+# Misconfigurations in terraform/ and the manifests under applications/ and argocd/.
+# Like kustomize.yml, every pull request runs it: a scan takes seconds and reaches
+# nothing outside the checkout, and a required check that a path filter can skip
+# never reports at all.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  trivy:
+    name: trivy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: trivy
+
+      # HIGH and CRITICAL fail the job; MEDIUM and LOW are printed for whoever takes
+      # them on. --skip-check-update keeps to the checks embedded in the pinned trivy,
+      # so a check published upstream cannot red an unrelated PR — new checks come in
+      # with a trivy bump, where they belong. The remote bases under argocd/ are not
+      # fetched, so what is scanned is this repo's own YAML.
+      - name: Scan
+        run: |
+          set -euo pipefail
+          trivy config --skip-check-update --severity MEDIUM,LOW --exit-code 0 .
+          trivy config --skip-check-update --severity HIGH,CRITICAL --exit-code 1 .
