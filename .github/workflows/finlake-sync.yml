@@ -1,0 +1,76 @@
+name: finlake sync
+
+# Runs the finlake sync CronJob once, now, for a CSV uploaded outside its
+# schedule. boykush/life calls this by file name with `gh workflow run`, so
+# the file name and `name:` are a contract with that repository.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: finlake-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync
+    # Anything with Actions write can dispatch, a GitHub App token included;
+    # only a run the owner started is allowed to touch the household ledger.
+    if: github.triggering_actor == 'boykush'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+      # Outlives the wait below (the Job's activeDeadlineSeconds plus slack),
+      # so the logs can still be read after a Job that ran to its deadline.
+      - name: Fetch kubeconfig
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 900
+
+      - name: Create the Job
+        run: |
+          set -euo pipefail
+          job="sync-manual-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          kubectl -n finlake create job --from=cronjob/sync "${job}"
+          echo "JOB=${job}" >> "${GITHUB_ENV}"
+
+      # Waits for whichever condition comes first; a deadline hit is Failed too.
+      - name: Wait for the Job
+        run: |
+          set -euo pipefail
+          kubectl -n finlake wait "job/${JOB}" --for=condition=complete --timeout=660s &
+          complete=$!
+          kubectl -n finlake wait "job/${JOB}" --for=condition=failed --timeout=660s &
+          failed=$!
+          wait -n "${complete}" "${failed}" || true
+          kill "${complete}" "${failed}" 2> /dev/null || true
+          status="$(kubectl -n finlake get "job/${JOB}" \
+            -o jsonpath='{.status.conditions[?(@.status=="True")].type}')"
+          echo "Job conditions: ${status:-none}"
+          case " ${status} " in
+            *" Complete "*) ;;
+            *)
+              echo "::error::Job ${JOB} did not complete"
+              exit 1
+              ;;
+          esac
+
+      # Every pod's log, not only the first: backoffLimit 1 can leave a retry.
+      - name: Show the logs
+        if: always() && env.JOB != ''
+        run: |
+          kubectl -n finlake logs -l "batch.kubernetes.io/job-name=${JOB}" \
+            --prefix --tail=-1 --all-containers \
+            || kubectl -n finlake describe "job/${JOB}"
