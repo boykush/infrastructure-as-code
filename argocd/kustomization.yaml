@@ -104,7 +104,7 @@ patches:
               - name: argocd-application-controller
                 resources:
                   requests:
-                    cpu: 250m
+                    cpu: 100m
                     memory: 512Mi
                   limits:
                     memory: 1Gi
@@ -124,7 +124,7 @@ patches:
               - name: argocd-repo-server
                 resources:
                   requests:
-                    cpu: 100m
+                    cpu: 50m
                     memory: 256Mi
                   limits:
                     memory: 512Mi
@@ -144,7 +144,7 @@ patches:
               - name: argocd-server
                 resources:
                   requests:
-                    cpu: 50m
+                    cpu: 25m
                     memory: 128Mi
                   limits:
                     memory: 256Mi
@@ -164,7 +164,7 @@ patches:
               - name: redis
                 resources:
                   requests:
-                    cpu: 50m
+                    cpu: 25m
                     memory: 64Mi
                   limits:
                     memory: 128Mi
