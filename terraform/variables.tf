@@ -118,7 +118,7 @@ variable "tunnel_routes" {
 variable "access_owner_email" {
   type        = string
   sensitive   = true
-  description = "The one address Cloudflare Access lets through (access.tf). Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
+  description = "The owner's address: the one Cloudflare Access lets through (access.tf), and where the AWS budget alerts go (aws.tf). Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
 
   # An unset Actions secret expands to an empty string rather than failing, which
   # would plan cleanly into a policy that admits no one.
