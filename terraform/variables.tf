@@ -79,10 +79,6 @@ variable "tunnel_routes" {
       subdomain = "jaeger"
       service   = "http://jaeger.jaeger.svc.cluster.local:16686"
     },
-    {
-      subdomain = "headlamp"
-      service   = "http://headlamp.headlamp.svc.cluster.local:4466"
-    },
     # Not public: Access is in front of these (access.tf), and agentgateway
     # checks the JWT it adds.
     {

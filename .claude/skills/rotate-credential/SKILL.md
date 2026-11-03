@@ -126,7 +126,7 @@ gh workflow run external-secrets-credential.yml
 
 ## Access の GitHub ログイン
 
-Backstage・Argo CD・Headlamp・Jaeger と非公開の MCP の前段にある Access は、owner の OAuth App で GitHub ログインする。GitHub には OAuth App を作る API が無いので、人間に頼む。
+Backstage・Argo CD・Jaeger と非公開の MCP の前段にある Access は、owner の OAuth App で GitHub ログインする。GitHub には OAuth App を作る API が無いので、人間に頼む。
 
 - 作り方：Settings → Developer settings → OAuth Apps。Homepage URL は `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL は `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback`。Client ID は `terraform/access.tf` に書き、Client secret は repo secret `ACCESS_GITHUB_CLIENT_SECRET`（CI が `TF_VAR_access_github_client_secret` で渡す）。
 - Client secret を替えるとき：OAuth App に新しい secret を足し、`ACCESS_GITHUB_CLIENT_SECRET` を差し替え、次の apply で Cloudflare に届いてから古い方を消す。
