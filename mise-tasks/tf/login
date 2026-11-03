@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Log in to the HCP Terraform backend (once per machine)"
+
+terraform login app.terraform.io

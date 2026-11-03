@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#MISE description="Show the AWS bill by service and usage type, month by month"
+#USAGE arg "[months]" help="How many months back, this one included" default="3"
+
+# Each call to Cost Explorer is billed ($0.01), so this is run by hand when the
+# bill looks off; the budget in terraform/aws.tf is what watches it. Rows under
+# half a cent are dropped: S3 alone leaves a dozen of them every month.
+set -euo pipefail
+
+y=$(date -u +%Y)
+m=$((10#$(date -u +%m)))
+start_m=$((m - usage_months + 1)); start_y=$y
+while [ "$start_m" -le 0 ]; do start_m=$((start_m + 12)); start_y=$((start_y - 1)); done
+end_m=$((m % 12 + 1)); end_y=$((m == 12 ? y + 1 : y))
+
+aws ce get-cost-and-usage \
+  --time-period "Start=$(printf '%04d-%02d-01' "$start_y" "$start_m"),End=$(printf '%04d-%02d-01' "$end_y" "$end_m")" \
+  --granularity MONTHLY \
+  --metrics UnblendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE Type=DIMENSION,Key=USAGE_TYPE \
+  --query 'ResultsByTime[].[TimePeriod.Start, Groups[].[Keys[0], Keys[1], Metrics.UnblendedCost.Amount]]' \
+  --output text |
+awk -F '\t' '
+  function flush() { if (month != "") printf "  %-44s %-48s %8.2f USD\n\n", "total", "", total }
+  NF == 1 { flush(); month = $1; total = 0; print substr(month, 1, 7); next }
+  $3 + 0 >= 0.005 || $3 + 0 <= -0.005 { printf "  %-44s %-48s %8.2f\n", $1, $2, $3 }
+  { total += $3 }
+  END { flush() }
+'
