@@ -43,6 +43,9 @@ app:
             - url: https://jaeger.boykush.com
               label: Jaeger
               icon: search
+            - url: https://opencost.boykush.com
+              label: OpenCost
+              icon: dashboard
             - url: https://app.terraform.io/app/boykush/workspaces
               label: HCP Terraform
               icon: kind:resource
