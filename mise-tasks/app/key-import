@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#MISE description="Import a GitHub App private key into its KMS key (one import per key, forever)"
+#MISE tools={node="24.21.0"}
+#USAGE arg "<app>" help="App name as written in var.github_apps, which names the alias"
+#USAGE arg "<pem>" help="Path to the private key GitHub generated"
+
+# KMS は wrap した material しか受け取らず、RSA-OAEP だけでは 2048bit の鍵（PKCS#8 DER で
+# 1217 バイト）が包めないので AES-KWP が要る。macOS の LibreSSL はそれを持たないので node の
+# crypto を借りる。[tools] ではなく task に置いてあるのは、CI が走らせる mise install が
+# task の tool を入れないため——この repo の workflow に node は増えない。
+set -euo pipefail
+node - "${usage_app}" "${usage_pem}" <<'JS'
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
+
+const [app, pem] = process.argv.slice(2);
+const aws = (...args) =>
+  execFileSync("aws", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
+
+try {
+  // get-parameters-for-import rejects an alias, so resolve it to the key ARN.
+  const keyArn = aws("kms", "describe-key", "--key-id", "alias/github-app-" + app,
+    "--query", "KeyMetadata.Arn", "--output", "text");
+
+  const params = JSON.parse(aws("kms", "get-parameters-for-import", "--key-id", keyArn,
+    "--wrapping-algorithm", "RSA_AES_KEY_WRAP_SHA_256", "--wrapping-key-spec", "RSA_4096",
+    "--output", "json"));
+
+  // The key is too long for RSA-OAEP alone: AES wraps it, RSA wraps the AES
+  // key, and KMS unwraps the two halves in that order.
+  const material = crypto.createPrivateKey(fs.readFileSync(pem)).export({ type: "pkcs8", format: "der" });
+  const aesKey = crypto.randomBytes(32);
+  const wrappedAes = crypto.publicEncrypt({
+    key: crypto.createPublicKey({ key: Buffer.from(params.PublicKey, "base64"), format: "der", type: "spki" }),
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: "sha256",
+  }, aesKey);
+  const kwp = crypto.createCipheriv("id-aes256-wrap-pad", aesKey, Buffer.from("A65959A6", "hex"));
+  const wrapped = Buffer.concat([wrappedAes, kwp.update(material), kwp.final()]);
+
+  // Both blobs go on the command line as base64, which the v2 CLI takes as-is.
+  // Neither is a secret: only KMS can unwrap the material, and the token is
+  // single-use for this key.
+  aws("kms", "import-key-material", "--key-id", keyArn,
+    "--import-token", params.ImportToken,
+    "--encrypted-key-material", wrapped.toString("base64"),
+    "--expiration-model", "KEY_MATERIAL_DOES_NOT_EXPIRE");
+
+  console.log(aws("kms", "describe-key", "--key-id", keyArn,
+    "--query", "KeyMetadata.{KeyState:KeyState,Origin:Origin}"));
+} catch (e) {
+  // The AWS CLI already printed why; a stack trace on top of it helps no one.
+  process.exit(typeof e.status === "number" ? e.status : 1);
+}
+JS

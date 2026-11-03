@@ -23,6 +23,7 @@ locals {
   # ordering note there. Same construction as the parameter ARNs above.
   external_secrets_role_name = "github-actions-external-secrets"
   external_secrets_user_name = "external-secrets"
+  budget_name                = "monthly"
   github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
@@ -436,6 +437,20 @@ data "aws_iam_policy_document" "terraform" {
       "arn:aws:kms:${var.aws_region}:${local.aws_account_id}:key/*",
     ]
   }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "budgets:ListTagsForResource",
+      "budgets:ModifyBudget",
+      "budgets:TagResource",
+      "budgets:UntagResource",
+      "budgets:ViewBudget",
+    ]
+
+    resources = ["arn:aws:budgets::${local.aws_account_id}:budget/${local.budget_name}"]
+  }
 }
 
 resource "aws_iam_role" "terraform" {
@@ -448,4 +463,33 @@ resource "aws_iam_role_policy" "terraform" {
   name   = "manage-github-actions-identities"
   role   = aws_iam_role.terraform.id
   policy = data.aws_iam_policy_document.terraform.json
+}
+
+# Nothing here grows with use: the bill is the KMS keys, a dollar each, so the
+# limit sits a key or two above them and a jump past it means something new is
+# running in the account. Tax is counted, as it is on the invoice.
+resource "aws_budgets_budget" "monthly" {
+  depends_on = [aws_iam_role_policy.terraform]
+
+  name         = local.budget_name
+  budget_type  = "COST"
+  limit_amount = "6"
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    notification_type          = "ACTUAL"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    subscriber_email_addresses = [var.access_owner_email]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    notification_type          = "FORECASTED"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    subscriber_email_addresses = [var.access_owner_email]
+  }
 }
