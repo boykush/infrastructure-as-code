@@ -17,7 +17,9 @@ spec:
       chart: opencost
       targetRevision: 2.5.33
       helm:
-        valuesObject:
+        # A string rather than valuesObject: Argo CD drops nulls from the object,
+        # and the null below is what takes the chart's rollingUpdate away.
+        values: |
           # The volume holds one process's files, so the old pod has to let go
           # before the new one can attach it.
           updateStrategy:
