@@ -1,6 +1,6 @@
-# metrics-server: the source of the CPU and memory figures Headlamp
-# (applications/headlamp) draws for the node. DOKS ships without it, so until
-# this syncs the cluster has no metrics API at all. It lives in kube-system
+# metrics-server: the source of the CPU and memory figures on Backstage's
+# Kubernetes tab (applications/backstage/rbac.yaml). DOKS ships without it, so
+# until this syncs the cluster has no metrics API at all. It lives in kube-system
 # because upstream's manifest wires its APIService and RBAC to that namespace.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

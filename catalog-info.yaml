@@ -23,9 +23,6 @@ metadata:
     - url: https://jaeger.boykush.com
       title: Jaeger
       icon: dashboard
-    - url: https://headlamp.boykush.com
-      title: Headlamp
-      icon: dashboard
 spec:
   type: repository
   lifecycle: production

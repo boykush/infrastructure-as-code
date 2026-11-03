@@ -1,7 +1,7 @@
 # What the Kubernetes tab on an entity may show. Everyone past Access acts as
 # this account (guest sign-in, allow-all policy, and the plugin's proxy), so it
-# is held to what Headlamp's may read, minus nodes and volumes, which belong to
-# no entity. Secrets, pod logs, exec and every write stay out for the same reason.
+# is held to the workloads an entity owns and what they consume. Secrets, pod
+# logs, exec and every write stay out for the same reason.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
