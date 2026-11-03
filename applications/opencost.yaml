@@ -1,7 +1,8 @@
 # OpenCost: what each workload's share of the node costs, and how much of the
 # node sits idle. It runs without Prometheus (its own collector, beta), prices
-# the node from DigitalOcean's size list, and is read through its MCP server
-# and its UI at opencost.<domain>. Neither has a login: Access is the lock.
+# the node from its built-in fallback (no DO token is given; for s-2vcpu-4gb it
+# matches the list price), and is read through its MCP server and its UI at
+# opencost.<domain>. Neither has a login: Access is the lock.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
