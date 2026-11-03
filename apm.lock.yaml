@@ -557,6 +557,15 @@ deployments:
   content_hash: null
 - kind: uri
   target: mcp
+  value: opencost
+  runtime: claude
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: uri
+  target: mcp
   value: adr
   runtime: codex
   scope: project
@@ -582,10 +591,20 @@ deployments:
   - .
   active_owner: .
   content_hash: null
+- kind: uri
+  target: mcp
+  value: opencost
+  runtime: codex
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
 mcp_servers:
 - adr
 - catalog
 - jaeger
+- opencost
 mcp_configs:
   adr:
     name: adr
@@ -602,15 +621,22 @@ mcp_configs:
     transport: http
     registry: false
     url: https://jaeger-mcp.boykush.com/mcp
+  opencost:
+    name: opencost
+    transport: http
+    registry: false
+    url: https://opencost-mcp.boykush.com/mcp
 mcp_target_servers:
   claude:
   - adr
   - catalog
   - jaeger
+  - opencost
   codex:
   - adr
   - catalog
   - jaeger
+  - opencost
 mcp_config_provenance:
   adr: adr-remote-mcp
   catalog: catalog-remote-mcp

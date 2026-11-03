@@ -9,3 +9,7 @@ id = ""
 [mcp_servers.jaeger]
 url = "https://jaeger-mcp.boykush.com/mcp"
 id = ""
+
+[mcp_servers.opencost]
+url = "https://opencost-mcp.boykush.com/mcp"
+id = ""

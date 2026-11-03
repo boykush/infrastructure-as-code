@@ -14,4 +14,9 @@ dependencies:
     - boykush/ai-plugins/plugins/adr-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
     - boykush/ai-plugins/plugins/catalog-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
     - boykush/ai-plugins/plugins/jaeger-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
-  mcp: []
+  # Servers only this repository's agents call, so they are not in boykush/ai-plugins.
+  mcp:
+    - name: opencost
+      registry: false
+      transport: http
+      url: https://opencost-mcp.boykush.com/mcp
