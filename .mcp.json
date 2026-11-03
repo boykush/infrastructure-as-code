@@ -11,6 +11,10 @@
     "jaeger": {
       "type": "http",
       "url": "https://jaeger-mcp.boykush.com/mcp"
+    },
+    "opencost": {
+      "type": "http",
+      "url": "https://opencost-mcp.boykush.com/mcp"
     }
   }
 }

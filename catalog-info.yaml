@@ -38,6 +38,7 @@ spec:
     - adr-mcp
     - catalog-mcp
     - jaeger-mcp
+    - opencost-mcp
   dependsOn:
     - component:adr
     - component:wiki
