@@ -31,9 +31,15 @@ spec:
   lifecycle: production
   owner: user:boykush
   system: runtime
+  # Every MCP endpoint this repository publishes, including those whose server
+  # another repository builds: those keep their own repository as a provider too.
   providesApis:
+    - adr-mcp
+    - catalog-mcp
+    - finlake-mcp
     - jaeger-mcp
     - opencost-mcp
+    - wiki-mcp
   consumesApis:
     - adr-mcp
     - catalog-mcp
