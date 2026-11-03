@@ -79,6 +79,10 @@ variable "tunnel_routes" {
       subdomain = "jaeger"
       service   = "http://jaeger.jaeger.svc.cluster.local:16686"
     },
+    {
+      subdomain = "opencost"
+      service   = "http://opencost.opencost.svc.cluster.local:9090"
+    },
     # Not public: Access is in front of these (access.tf), and agentgateway
     # checks the JWT it adds.
     {
@@ -87,6 +91,10 @@ variable "tunnel_routes" {
     },
     {
       subdomain = "jaeger-mcp"
+      service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
+    },
+    {
+      subdomain = "opencost-mcp"
       service   = "http://agentgateway.agentgateway.svc.cluster.local:3000"
     },
     {

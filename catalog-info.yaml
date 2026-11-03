@@ -23,6 +23,9 @@ metadata:
     - url: https://jaeger.boykush.com
       title: Jaeger
       icon: dashboard
+    - url: https://opencost.boykush.com
+      title: OpenCost
+      icon: dashboard
 spec:
   type: repository
   lifecycle: production
@@ -30,6 +33,7 @@ spec:
   system: runtime
   providesApis:
     - jaeger-mcp
+    - opencost-mcp
   consumesApis:
     - adr-mcp
     - catalog-mcp
@@ -68,6 +72,22 @@ spec:
   remotes:
     - type: streamable-http
       url: https://jaeger-mcp.boykush.com/mcp
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: opencost-mcp
+  description: >-
+    クラスタの workload ごとのコストと node の idle を読む remote MCP サーバー。読み取り専用。jaeger-mcp と同じく
+    Cloudflare Access の内側にあり、通るのは owner だけ。公開エンドポイントは infrastructure-as-code が持つ
+spec:
+  type: mcp-server
+  lifecycle: experimental
+  owner: user:boykush
+  system: runtime
+  remotes:
+    - type: streamable-http
+      url: https://opencost-mcp.boykush.com/mcp
 ---
 apiVersion: backstage.io/v1alpha1
 kind: Resource

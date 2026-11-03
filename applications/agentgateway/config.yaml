@@ -70,6 +70,16 @@ binds:
                     - name: jaeger
                       mcp:
                         host: http://jaeger.jaeger.svc.cluster.local:16686/api/ai/mcp/
+          - hostnames: [opencost-mcp.boykush.com]
+            policies:
+              jwtAuth: *access
+            backends:
+              - mcp:
+                  statefulMode: stateless
+                  targets:
+                    - name: opencost
+                      mcp:
+                        host: http://opencost.opencost.svc.cluster.local:8081/mcp
           - hostnames: [catalog-mcp.boykush.com]
             policies:
               jwtAuth: *access

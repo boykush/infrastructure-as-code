@@ -76,6 +76,23 @@ resource "cloudflare_zero_trust_access_application" "jaeger" {
   }]
 }
 
+# OpenCost's UI, behind the same gate. It has no login, and what it shows is
+# the cluster's workloads and what they cost. Its MCP server is reached through
+# agentgateway, under the application below.
+resource "cloudflare_zero_trust_access_application" "opencost" {
+  account_id                = local.account_id
+  name                      = "opencost"
+  type                      = "self_hosted"
+  domain                    = "opencost.${var.domain}"
+  destinations              = [{ type = "public", uri = "opencost.${var.domain}" }]
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
+  auto_redirect_to_identity = true
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.owner.id
+    precedence = 1
+  }]
+}
+
 # The MCP servers that are not public. Access only issues here: it runs the
 # login and hands the request on with a signed JWT, and agentgateway is what
 # checks it (applications/agentgateway/config.yaml), so a caller inside the
@@ -90,6 +107,7 @@ resource "cloudflare_zero_trust_access_application" "mcp" {
     { type = "public", uri = "finlake-mcp.${var.domain}" },
     { type = "public", uri = "jaeger-mcp.${var.domain}" },
     { type = "public", uri = "catalog-mcp.${var.domain}" },
+    { type = "public", uri = "opencost-mcp.${var.domain}" },
   ]
   allowed_idps              = [cloudflare_zero_trust_access_identity_provider.github.id]
   auto_redirect_to_identity = true

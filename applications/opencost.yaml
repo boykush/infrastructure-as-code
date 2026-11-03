@@ -1,0 +1,90 @@
+# OpenCost: what each workload's share of the node costs, and how much of the
+# node sits idle. It runs without Prometheus (its own collector, beta), prices
+# the node from DigitalOcean's size list, and is read through its MCP server
+# and its UI at opencost.<domain>. Neither has a login: Access is the lock.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencost
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # targetRevision is the version, bumped by hand like the remote bases.
+    - repoURL: https://opencost.github.io/opencost-helm-chart
+      chart: opencost
+      targetRevision: 2.5.33
+      helm:
+        valuesObject:
+          # The volume holds one process's files, so the old pod has to let go
+          # before the new one can attach it.
+          updateStrategy:
+            type: Recreate
+            rollingUpdate: null
+          podSecurityContext:
+            runAsNonRoot: true
+            # A fresh volume belongs to root; this hands it to the image's user.
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          opencost:
+            exporter:
+              defaultClusterId: boykush-cluster
+              collectorDataSource:
+                enabled: true
+                # Days kept at daily resolution. The default of 15 cannot
+                # answer for a month, let alone compare two.
+                retention1d: 62
+              # The collector writes its WAL under CONFIG_PATH, not the chart's
+              # default mount, so the volume goes there. Without it the history
+              # would leave with the node every night.
+              persistence:
+                enabled: true
+                mountPath: /var/configs
+                storageClass: do-block-storage
+                accessMode: ReadWriteOnce
+                size: 1Gi
+              # Kept low on purpose: requests are nearly spent on this node,
+              # and a measuring tool is the right pod to be evicted first.
+              # Revisit once it has measured itself.
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext: &container
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+            mcp:
+              enabled: true
+            # The collector stands in for it.
+            prometheus:
+              internal:
+                enabled: false
+            ui:
+              enabled: true
+              # nginx serving static files.
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+              # No readOnlyRootFilesystem: the entrypoint rewrites its JS at start.
+              securityContext: *container
+    - repoURL: https://github.com/boykush/infrastructure-as-code
+      targetRevision: main
+      path: applications/opencost
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencost
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
