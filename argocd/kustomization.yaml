@@ -169,6 +169,7 @@ patches:
                   limits:
                     memory: 128Mi
 
+  # No ApplicationSet exists: every Application is written by hand.
   - target:
       kind: Deployment
       name: argocd-applicationset-controller
@@ -178,17 +179,9 @@ patches:
       metadata:
         name: argocd-applicationset-controller
       spec:
-        template:
-          spec:
-            containers:
-              - name: argocd-applicationset-controller
-                resources:
-                  requests:
-                    cpu: 25m
-                    memory: 64Mi
-                  limits:
-                    memory: 128Mi
+        replicas: 0
 
+  # No notification is configured, so it would only sit in RAM.
   - target:
       kind: Deployment
       name: argocd-notifications-controller
@@ -198,13 +191,4 @@ patches:
       metadata:
         name: argocd-notifications-controller
       spec:
-        template:
-          spec:
-            containers:
-              - name: argocd-notifications-controller
-                resources:
-                  requests:
-                    cpu: 25m
-                    memory: 64Mi
-                  limits:
-                    memory: 128Mi
+        replicas: 0
