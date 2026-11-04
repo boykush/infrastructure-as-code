@@ -8,6 +8,14 @@ resources:
   - github.com/argoproj/argo-cd//manifests/cluster-install?ref=v3.5.3
   - image-updater
 
+# Upstream puts this on the workloads but not on their pods, and Image Updater
+# has none; this repository's Component (catalog-info.yaml) finds them by it.
+# Selectors are left alone, since they cannot change in place.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: argocd
+    includeTemplates: true
+
 # Upstream ships no resource requests. On a single 2 vCPU / 4GB node the
 # scheduler needs them to reason about what else fits, so every component gets
 # a modest floor and a memory ceiling.
