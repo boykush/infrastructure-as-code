@@ -6,7 +6,7 @@
     },
     "catalog": {
       "type": "http",
-      "url": "https://backstage.boykush.com/api/mcp-actions/v1/catalog"
+      "url": "https://catalog-mcp.boykush.com/mcp"
     },
     "jaeger": {
       "type": "http",

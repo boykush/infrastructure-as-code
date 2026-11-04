@@ -11,9 +11,9 @@ includes: auto
 # this file and .apm/; edit those sources, not the generated files.
 dependencies:
   apm:
-    - boykush/ai-plugins/plugins/adr-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
-    - boykush/ai-plugins/plugins/catalog-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
-    - boykush/ai-plugins/plugins/jaeger-remote-mcp#c1bb99f37c25ebe11432be84fb37ada18d4f8367
+    - boykush/ai-plugins/plugins/adr-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
+    - boykush/ai-plugins/plugins/catalog-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
+    - boykush/ai-plugins/plugins/jaeger-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
   # Servers only this repository's agents call, so they are not in boykush/ai-plugins.
   mcp:
     - name: opencost
