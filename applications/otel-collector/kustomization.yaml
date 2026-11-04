@@ -5,6 +5,14 @@ resources:
   - deployment.yaml
   - service.yaml
 
+# What this repository's Component (catalog-info.yaml) finds this workload by,
+# on the Deployment as well as its pods: the Kubernetes tab lists only the owners
+# that carry it. Selectors are left alone, since they cannot change in place.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: infrastructure-as-code
+    includeTemplates: true
+
 # The hash suffix on the generated name rolls the Deployment when the config changes.
 configMapGenerator:
   - name: otel-collector-config

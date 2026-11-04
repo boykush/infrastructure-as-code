@@ -5,6 +5,14 @@ kind: Kustomization
 resources:
   - https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
 
+# What this repository's Component (catalog-info.yaml) finds this workload by,
+# on the Deployment as well as its pods: the Kubernetes tab lists only the owners
+# that carry it. Selectors are left alone, since they cannot change in place.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: infrastructure-as-code
+    includeTemplates: true
+
 patches:
   # Upstream asks for 100m / 200Mi, sized for a hundred nodes, and sets no
   # ceiling. This cluster has one node and little memory left on it.

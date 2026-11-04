@@ -13,6 +13,9 @@ metadata:
     Code の token・GitHub App の鍵）の置き場と信頼も、ここが AWS に作る——どの repo が使えるかは terraform/variables.tf
     の claude_code_repositories と github_apps が決める。Image Updater の書き戻しは、github-management が張る ruleset
     の bypass に頼る
+  annotations:
+    # Argo CD and OpenCost keep the part-of their upstream gives them.
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/part-of in (infrastructure-as-code,argocd,opencost)
   links:
     - url: https://app.terraform.io/app/boykush/workspaces/infrastructure-as-code
       title: HCP Terraform workspace
@@ -81,6 +84,10 @@ metadata:
   description: >-
     クラスタの workload ごとのコストと node の idle を読む remote MCP サーバー。読み取り専用。jaeger-mcp と同じく
     Cloudflare Access の内側にあり、通るのは owner だけ。公開エンドポイントは infrastructure-as-code が持つ
+  links:
+    - url: https://github.com/boykush/infrastructure-as-code/blob/main/apm.yml
+      title: 接続先の持ち主（infrastructure-as-code）
+      icon: github
 spec:
   type: mcp-server
   lifecycle: experimental

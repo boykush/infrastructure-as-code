@@ -32,6 +32,10 @@ spec:
             fsGroup: 1001
             seccompProfile:
               type: RuntimeDefault
+          # The chart labels the Deployment but not its pod; this repository's
+          # Component (catalog-info.yaml) finds both by it.
+          podLabels:
+            app.kubernetes.io/part-of: opencost
           opencost:
             exporter:
               defaultClusterId: boykush-cluster
