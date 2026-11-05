@@ -55,6 +55,7 @@ spec:
     - resource:ghcr
     - resource:image-updater-app
     - resource:repo-reader-app
+    - resource:aws-parameter-store
 ---
 apiVersion: backstage.io/v1alpha1
 kind: API
@@ -128,5 +129,41 @@ metadata:
     が作る。cluster の sync CronJob と MCP サーバーが同じ token で読み書きする
 spec:
   type: object-storage
+  owner: user:boykush
+  system: runtime
+---
+# The console links carry var.aws_region (terraform/variables.tf); move them with it.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: aws-kms
+  description: >-
+    AWS KMS。workflow が GitHub App として署名する鍵の置き場で、鍵は取り出せず、署名できるのは App ごとの role だけ。どの App
+    の鍵があり、どの repo が使えるかは terraform/variables.tf の github_apps が決める。Terraform が作るのは中身の無い key
+    で、material は人が mise run app:key-import で入れる（skill add-github-app）
+  links:
+    - url: https://ap-northeast-1.console.aws.amazon.com/kms/home?region=ap-northeast-1#/kms/keys
+      title: KMS の鍵（AWS console）
+      icon: dashboard
+spec:
+  type: key-management
+  owner: user:boykush
+  system: runtime
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: aws-parameter-store
+  description: >-
+    AWS Systems Manager Parameter Store。repo secret と cluster の Secret の代わりに資格情報を置く場所——Claude
+    Code の token（claude_code_repositories の repo が run の OIDC で読む）、cluster の Secret の元（External
+    Secrets Operator が読む）、その operator 自身の access key。パスはどれも terraform/variables.tf
+    にある。Terraform は値を書かないので、入れるのも入れ替えるのも人の作業（skill rotate-credential）
+  links:
+    - url: https://ap-northeast-1.console.aws.amazon.com/systems-manager/parameters?region=ap-northeast-1
+      title: Parameter Store（AWS console）
+      icon: dashboard
+spec:
+  type: secret-store
   owner: user:boykush
   system: runtime
