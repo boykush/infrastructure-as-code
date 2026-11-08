@@ -49,16 +49,6 @@ dependencies:
   is_virtual: true
   package_type: apm_package
   content_hash: sha256:ae003681f4fec3db2a579236651d5ec28f4238a8d520c59dd47046912f315f28
-- repo_url: boykush/ai-plugins
-  name: jaeger-remote-mcp
-  host: github.com
-  resolved_commit: 3631b08cd0fd77c73af1d53706d5af4e7a5064e2
-  resolved_ref: 3631b08cd0fd77c73af1d53706d5af4e7a5064e2
-  version: 0.1.0
-  virtual_path: plugins/jaeger-remote-mcp
-  is_virtual: true
-  package_type: apm_package
-  content_hash: sha256:071c6a846f648ca853ec08a9f1d078baacc5f675c432d6548c92e98df3a94268
 deployments:
 - kind: project-relative
   target: claude
@@ -640,7 +630,6 @@ mcp_target_servers:
 mcp_config_provenance:
   adr: adr-remote-mcp
   catalog: catalog-remote-mcp
-  jaeger: jaeger-remote-mcp
 local_deployed_files:
 - .agents/skills/add-claude-code-repo
 - .agents/skills/add-claude-code-repo/SKILL.md

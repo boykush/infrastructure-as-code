@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "author": {
+    "name": "boykush"
+  },
+  "description": "Remote MCP server for the traces boykush's cluster workloads send to Jaeger. Read what a workload did from any repository without restating the server in each one. Behind Cloudflare Access - the first call signs in through the client's OAuth flow.",
+  "name": "jaeger-remote-mcp",
+  "version": "0.1.0"
+}
