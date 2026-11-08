@@ -13,9 +13,15 @@ dependencies:
   apm:
     - boykush/ai-plugins/plugins/adr-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
     - boykush/ai-plugins/plugins/catalog-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
-    - boykush/ai-plugins/plugins/jaeger-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
-  # Servers only this repository's agents call, so they are not in boykush/ai-plugins.
   mcp:
+    # The plugin this repository ships (plugins/jaeger-remote-mcp/mcp.json), taken here directly:
+    # through ai-plugins, a URL change would need its pin moved there and back. apm doesn't read
+    # an Agent Plugin's mcp.json, so the server is declared again.
+    - name: jaeger
+      registry: false
+      transport: http
+      url: https://jaeger-mcp.boykush.com/mcp
+    # Servers only this repository's agents call, so they are not in boykush/ai-plugins.
     - name: opencost
       registry: false
       transport: http

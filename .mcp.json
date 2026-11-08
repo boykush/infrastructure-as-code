@@ -1,13 +1,5 @@
 {
   "mcpServers": {
-    "adr": {
-      "type": "http",
-      "url": "https://adr-mcp.boykush.com/mcp"
-    },
-    "catalog": {
-      "type": "http",
-      "url": "https://catalog-mcp.boykush.com/mcp"
-    },
     "jaeger": {
       "type": "http",
       "url": "https://jaeger-mcp.boykush.com/mcp"
@@ -15,6 +7,14 @@
     "opencost": {
       "type": "http",
       "url": "https://opencost-mcp.boykush.com/mcp"
+    },
+    "adr": {
+      "type": "http",
+      "url": "https://adr-mcp.boykush.com/mcp"
+    },
+    "catalog": {
+      "type": "http",
+      "url": "https://catalog-mcp.boykush.com/mcp"
     }
   }
 }
