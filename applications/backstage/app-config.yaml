@@ -105,11 +105,12 @@ catalog:
   # a location is refused, and a deleted entity is read back from where it came
   # from within minutes.
   readonly: true
-  # Restates the image's defaults, since this list replaces them. User is let in
-  # only from github-management, whose catalog/ holds the owner (and whose
+  # Restates the image's defaults, since this list replaces them, plus the
+  # AiResource kind backstage-app builds in. User is let in only from
+  # github-management, whose catalog/ holds the owner (and whose
   # catalog-info.yaml points there).
   rules:
-    - allow: [Component, System, API, Resource, Location]
+    - allow: [Component, System, API, Resource, Location, AiResource]
     - allow: [User]
       locations:
         - type: url
