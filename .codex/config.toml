@@ -1,15 +1,11 @@
 [mcp_servers.jaeger]
 url = "https://jaeger-mcp.boykush.com/mcp"
-id = ""
 
 [mcp_servers.opencost]
 url = "https://opencost-mcp.boykush.com/mcp"
-id = ""
 
 [mcp_servers.adr]
 url = "https://adr-mcp.boykush.com/mcp"
-id = ""
 
 [mcp_servers.catalog]
 url = "https://catalog-mcp.boykush.com/mcp"
-id = ""
