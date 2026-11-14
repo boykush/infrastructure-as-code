@@ -80,6 +80,10 @@ backend:
         options:
           token: catalog-mcp-public-reader
           subject: catalog-mcp
+  # Replaces the image's list, so its three are written again. An action is
+  # served only once its plugin is here; mcpActions below picks what is exposed.
+  actions:
+    pluginSources: [auth, catalog, scaffolder, search, techdocs]
 auth:
   providers:
     guest:
@@ -168,7 +172,8 @@ kubernetes:
 # What coding agents connect to, through agentgateway as catalog-mcp.<domain>.
 # The default server at /api/mcp-actions/v1 is always exposed and always serves
 # every registered action, so agentgateway forwards to this named one alone and
-# the filter keeps it to reading the catalog.
+# the filter keeps it to reading what public repositories hold. Kubernetes stays
+# out: this server is also reached without a login (terraform/access.tf).
 mcpActions:
   servers:
     catalog:
@@ -176,15 +181,23 @@ mcpActions:
       instructions: >-
         The repositories under the boykush owner and the relations that cross
         them. Ask it which repositories a change reaches before treating the one
-        in front of you as the whole of it.
+        in front of you as the whole of it. Search runs over the entities and
+        their TechDocs, for when you have a word but not an entity's name.
       filter:
         include:
           - id: catalog:*
             attributes:
               readOnly: true
+          - id: search:*
+            attributes:
+              readOnly: true
+          - id: techdocs:*
+            attributes:
+              readOnly: true
   # Puts each call's arguments and result on its span. Upstream leaves this off
-  # because they can be sensitive; here they are catalog reads, and the spans
-  # stay in the cluster, behind the same owner-only login as the catalog.
+  # because they can be sensitive; here they are reads of public repositories,
+  # and the spans stay in the cluster, behind the same owner-only login as the
+  # catalog.
   tracing:
     capture:
       toolPayload: true
