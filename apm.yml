@@ -11,8 +11,8 @@ includes: auto
 # this file and .apm/; edit those sources, not the generated files.
 dependencies:
   apm:
-    - boykush/ai-plugins/plugins/adr-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
-    - boykush/ai-plugins/plugins/catalog-remote-mcp#3631b08cd0fd77c73af1d53706d5af4e7a5064e2
+    - boykush/ai-plugins/plugins/adr-remote-mcp#dee3bcc01b9b450720395347b9202f9727795dd4
+    - boykush/ai-plugins/plugins/catalog-remote-mcp#dee3bcc01b9b450720395347b9202f9727795dd4
   mcp:
     # The plugin this repository ships (plugins/jaeger-remote-mcp/mcp.json), taken here directly:
     # through ai-plugins, a URL change would need its pin moved there and back. apm doesn't read
