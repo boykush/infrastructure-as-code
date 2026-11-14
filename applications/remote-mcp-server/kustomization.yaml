@@ -15,7 +15,7 @@ images:
   - name: ghcr.io/boykush/adr-mcp-server
     newName: ghcr.io/boykush/adr-mcp-server
     newTag: main
-    digest: sha256:b5a8fdbe63105cda3b4d4741296793ef4adda92276c345aad07a4a2deb0b66b6
+    digest: sha256:9b5a14e942b9a709bb4b97edf1203e8b090028efe784b92c14347a417d978f0e
   - name: ghcr.io/boykush/wiki-mcp-server
     digest: sha256:33f1e35e50e35c6a23e699c4b5a4e15053672da97bc9cfebc20fb10e1eeae813
     newName: ghcr.io/boykush/wiki-mcp-server
