@@ -11,17 +11,12 @@ includes: auto
 # this file and .apm/; edit those sources, not the generated files.
 dependencies:
   apm:
-    - boykush/ai-plugins/plugins/adr-remote-mcp#e36040c30078bbe9b4f99094f45a52ada99ee076
+    - boykush/adr/plugins/adr-remote-mcp#0ace14215204963afc46838a03502819e705c4c4 # adr-remote-mcp--v0.1.0
     - boykush/ai-plugins/plugins/catalog-remote-mcp#e36040c30078bbe9b4f99094f45a52ada99ee076
+    # The plugin this repository ships, taken from here as the same package its consumers get.
+    - ./plugins/jaeger-remote-mcp
   mcp:
-    # The plugin this repository ships (plugins/jaeger-remote-mcp/mcp.json), taken here directly:
-    # through ai-plugins, a URL change would need its pin moved there and back. apm doesn't read
-    # an Agent Plugin's mcp.json, so the server is declared again.
-    - name: jaeger
-      registry: false
-      transport: http
-      url: https://jaeger-mcp.boykush.com/mcp
-    # Servers only this repository's agents call, so they are not in boykush/ai-plugins.
+    # Servers only this repository's agents call, so no plugin ships them.
     - name: opencost
       registry: false
       transport: http
