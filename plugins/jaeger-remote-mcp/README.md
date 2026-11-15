@@ -1,25 +1,25 @@
 # jaeger-remote-mcp
 
-クラスタの workload が出した trace を引くための remote MCP サーバーへの参照を1つ持つだけの plugin。[Agent Plugins](https://agent-plugins.org/specification) の形で書く。名前の `remote` は他の plugin に合わせたもので、port-forward で手元から引く経路はこの repo の README が持つ。
+クラスタの workload が出した trace を引くための remote MCP サーバーへの参照を1つ持つだけの apm の package。名前の `remote` は他の plugin に合わせたもので、port-forward で手元から引く経路はこの repo の README が持つ。
 
 サーバー名は `jaeger`。tool は `mcp__jaeger__*` として見える。読み取りだけ。
 
 ## 配る中身
 
-`mcp.json` の、`https://jaeger-mcp.boykush.com/mcp` への参照だけ。実体はこの repo にある。
+`apm.yml` の、`https://jaeger-mcp.boykush.com/mcp` への参照だけ。実体はこの repo にある。
 
 - **動く場所** は `applications/jaeger/`。MCP は Jaeger 自身が UI と同じポートに出す（`config.yaml` の `ai.mcp`）
-- **外向きの hostname と path** は `applications/agentgateway/config.yaml`。UI の hostname（`jaeger.boykush.com`）からは MCP に入れない。URL を変えるなら `mcp.json` も同じ PR で直す
+- **外向きの hostname と path** は `applications/agentgateway/config.yaml`。UI の hostname（`jaeger.boykush.com`）からは MCP に入れない。URL を変えるなら `apm.yml` も同じ PR で直す
 - **認証** は `terraform/access.tf`。Jaeger にログインは無く、前段の Cloudflare Access が token を出し、agentgateway がそれを確かめる
 
 ## 使う
 
-apm で受け取るなら、[ai-plugins](https://github.com/boykush/ai-plugins) がこの plugin から作る package に依存する。apm は Agent Plugins の形を Claude と Codex へは展開しないので、その変換を ai-plugins が持つ。
+apm で、この repo のこの package に tag の SHA で依存する。版は `apm.yml` の `version` が持つ。中身を変えるときは `version` も上げ、main に入ったら `jaeger-remote-mcp--v<version>` の tag を手で打つ（`git tag jaeger-remote-mcp--v<version> && git push origin jaeger-remote-mcp--v<version>`）。consumer の Renovate はこの tag を追う。
 
 ```yaml
 dependencies:
   apm:
-    - boykush/ai-plugins/plugins/jaeger-remote-mcp
+    - boykush/infrastructure-as-code/plugins/jaeger-remote-mcp#<SHA> # jaeger-remote-mcp--v<version>
 ```
 
 ```bash
