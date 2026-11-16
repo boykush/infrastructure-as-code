@@ -12,7 +12,7 @@ includes: auto
 dependencies:
   apm:
     - boykush/adr/plugins/adr-remote-mcp#0ace14215204963afc46838a03502819e705c4c4 # adr-remote-mcp--v0.1.0
-    - boykush/ai-plugins/plugins/catalog-remote-mcp#e36040c30078bbe9b4f99094f45a52ada99ee076
+    - boykush/ai-plugins/plugins/catalog-remote-mcp#74101afbd33eaacc0bf65aee978c460683dd0f1b
     # The plugin this repository ships, taken from here as the same package its consumers get.
     - ./plugins/jaeger-remote-mcp
   mcp:
