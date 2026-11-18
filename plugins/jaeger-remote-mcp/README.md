@@ -14,21 +14,9 @@
 
 ## 使う
 
-apm で、この repo のこの plugin に tag の SHA で依存する。consumer の Renovate はこの tag を追う。
+Agent Plugin として、この repo のこのディレクトリを `jaeger-remote-mcp--v<version>` の tag で引く。版は `plugin.json` の `version` が持ち、main に入ると [boykush/workflows](https://github.com/boykush/workflows) の agent-plugins が tag を打つ。
 
-```yaml
-dependencies:
-  apm:
-    - boykush/infrastructure-as-code/plugins/jaeger-remote-mcp#<SHA> # jaeger-remote-mcp--v<version>
-```
-
-隣の `apm.yml` は、apm がこの plugin を Claude と Codex へ展開するための中継ぎで、[boykush/workflows](https://github.com/boykush/workflows) の agent-plugins が `plugin.json` と `mcp.json` から書く。手では直さない。版は `plugin.json` の `version` が持ち、main に入ると同じ workflow が `jaeger-remote-mcp--v<version>` の tag を打つ。
-
-```bash
-apm install
-```
-
-Claude は `.mcp.json`、Codex は `.codex/config.toml` に入る。どちらも project scope なので、リポジトリに commit すればそのリポジトリで開いた全セッションに効く。
+隣の `apm.yml` は、apm がこの plugin を Claude と Codex へ展開するための中継ぎで、同じ workflow が `plugin.json` と `mcp.json` から書く。手では直さない。
 
 ## 引っかかり所
 
