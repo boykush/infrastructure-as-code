@@ -66,7 +66,7 @@ metadata:
     Access の内側にある——入口は Access の OAuth で、通るのは owner だけ。公開エンドポイントは
     infrastructure-as-code が持つ
   links:
-    - url: https://github.com/boykush/infrastructure-as-code/blob/main/plugins/jaeger-remote-mcp/apm.yml
+    - url: https://github.com/boykush/infrastructure-as-code/blob/main/plugins/jaeger-remote-mcp/mcp.json
       title: 接続先の持ち主（plugin jaeger-remote-mcp）
       icon: github
 spec:
@@ -83,7 +83,7 @@ kind: AiResource
 metadata:
   name: jaeger-remote-mcp
   description: >-
-    jaeger-mcp への参照を1つ持つだけの plugin（apm の package）
+    jaeger-mcp への参照を1つ持つだけの plugin（Agent Plugins の形）。apm の package にして配るのは ai-plugins
   links:
     - url: https://backstage.boykush.com/catalog/default/api/jaeger-mcp
       title: MCP サーバー（jaeger-mcp）

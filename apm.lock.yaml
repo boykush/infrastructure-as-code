@@ -7,7 +7,7 @@ dependencies:
   package_type: apm_package
   source: local
   local_path: ./plugins/jaeger-remote-mcp
-  content_hash: sha256:9cd87f5432c609d187bc373dda92888f4bc81068d2f6287b88bbe9be82530857
+  content_hash: sha256:41e37c3e2a1db77d2652431ab881e9f6a6992892743f146c5fdfc3106f3ff620
 - repo_url: boykush/adr
   name: adr-remote-mcp
   host: github.com
