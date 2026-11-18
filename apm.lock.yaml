@@ -7,7 +7,7 @@ dependencies:
   package_type: apm_package
   source: local
   local_path: ./plugins/jaeger-remote-mcp
-  content_hash: sha256:88e3d5459bd690859d3bf4b562bb3ddf020d1ee7076d915412bd67eb6409e1c7
+  content_hash: sha256:5533ee0caa157c5d4fc321a389518a37898ba2797492f2982381cedf293c5741
 - repo_url: boykush/adr
   name: adr-remote-mcp
   host: github.com
@@ -49,8 +49,8 @@ dependencies:
 - repo_url: boykush/ai-plugins
   name: catalog-remote-mcp
   host: github.com
-  resolved_commit: bce3271f814e6999b960babdbe5e40a22a50485e
-  resolved_ref: bce3271f814e6999b960babdbe5e40a22a50485e
+  resolved_commit: 9bebfb8fddd8582eb06c3cb78a43bf07b6c71248
+  resolved_ref: 9bebfb8fddd8582eb06c3cb78a43bf07b6c71248
   version: 0.1.0
   virtual_path: plugins/catalog-remote-mcp
   is_virtual: true
