@@ -29,4 +29,4 @@ images:
   - name: ghcr.io/boykush/backstage-app
     newName: ghcr.io/boykush/backstage-app
     newTag: main
-    digest: sha256:3425a0aa789458602bbe8f0001d706647a451021ef0ef3b01d649d94e878e5ce
+    digest: sha256:5924da7a59c7a431237775c0575f68e04ae682f7d0c1e34a30e9f3698efa19ca
