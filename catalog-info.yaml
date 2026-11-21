@@ -46,7 +46,7 @@ spec:
     - component:adr
     - component:wiki
     - component:github-management
-    - component:ai-plugins
+    - component:backstage-app
     - component:workflows
     - resource:doks-cluster
     - resource:cloudflare-tunnel

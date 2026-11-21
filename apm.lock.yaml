@@ -1,5 +1,5 @@
 lockfile_version: '1'
-apm_version: 0.35.1
+apm_version: 0.35.0
 dependencies:
 - repo_url: _local/jaeger-remote-mcp
   name: jaeger-remote-mcp
@@ -46,16 +46,16 @@ dependencies:
     .claude/skills/adr-check/SKILL.md: sha256:0a96dea6cda4f3dc8e3a570befa669a5d81e506960ad19e4b61325a5c409b26d
     .claude/skills/adr-review/SKILL.md: sha256:7db35c60c4f6922baaf1118445ef6282dc4ed01454ea1ebab4ef6f358790eb67
   content_hash: sha256:59c0853c4fef2ad5971b2a653cf2bdd9cab710a64827cd97f23b4d73c0e9dc20
-- repo_url: boykush/ai-plugins
+- repo_url: boykush/backstage-app
   name: catalog-remote-mcp
   host: github.com
-  resolved_commit: fdb71842c6cff55e022c3663c26f95b220c01795
-  resolved_ref: fdb71842c6cff55e022c3663c26f95b220c01795
+  resolved_commit: 6c54c07ff81a2034cac9676f359af06df3a22cb7
+  resolved_ref: 6c54c07ff81a2034cac9676f359af06df3a22cb7
   version: 0.1.0
-  virtual_path: plugins/catalog-remote-mcp
+  virtual_path: agent-plugins/catalog-remote-mcp
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:ae003681f4fec3db2a579236651d5ec28f4238a8d520c59dd47046912f315f28
+  content_hash: sha256:0e285b9c853b915dd9b23976f8c12c7724499c0171dd682274affd5c854575d6
 deployments:
 - kind: project-relative
   target: claude
