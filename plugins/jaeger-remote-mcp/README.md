@@ -14,19 +14,9 @@
 
 ## 使う
 
-apm で受け取るなら、[ai-plugins](https://github.com/boykush/ai-plugins) がこの plugin から作る package に依存する。apm は Agent Plugins の形を Claude と Codex へは展開しないので、その変換を ai-plugins が持つ。
+Agent Plugin として、この repo のこのディレクトリを `jaeger-remote-mcp--v<version>` の tag で引く。版は `plugin.json` の `version` が持ち、main に入ると [boykush/workflows](https://github.com/boykush/workflows) の agent-plugins が tag を打つ。
 
-```yaml
-dependencies:
-  apm:
-    - boykush/ai-plugins/plugins/jaeger-remote-mcp
-```
-
-```bash
-apm install
-```
-
-Claude は `.mcp.json`、Codex は `.codex/config.toml` に入る。どちらも project scope なので、リポジトリに commit すればそのリポジトリで開いた全セッションに効く。
+隣の `apm.yml` は、apm がこの plugin を Claude と Codex へ展開するための中継ぎで、同じ workflow が `plugin.json` と `mcp.json` から書く。手では直さない。
 
 ## 引っかかり所
 
