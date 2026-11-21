@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   agent-plugins:
-    uses: boykush/workflows/.github/workflows/agent-plugins.yml@8533f9d69cc9e9ad9f5de1814ff5b5ae259ee5ab
+    uses: boykush/workflows/.github/workflows/agent-plugins.yml@1d62746c40f5ba797b939b7099abdf5465260391
     with:
       path: plugins
     permissions:
