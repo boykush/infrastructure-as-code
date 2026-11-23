@@ -172,8 +172,10 @@ kubernetes:
 # What coding agents connect to, through agentgateway as catalog-mcp.<domain>.
 # The default server at /api/mcp-actions/v1 is always exposed and always serves
 # every registered action, so agentgateway forwards to this named one alone and
-# the filter keeps it to reading what public repositories hold. Kubernetes stays
-# out: this server is also reached without a login (terraform/access.tf).
+# the filter keeps it to reading the catalog. Every way in checks the caller
+# first (the owner's login, or ai-review's OIDC token), so the catalog may hold
+# what private repositories write about themselves. Kubernetes stays out all the
+# same: agents read the catalog, not the cluster.
 mcpActions:
   servers:
     catalog:
@@ -195,9 +197,8 @@ mcpActions:
             attributes:
               readOnly: true
   # Puts each call's arguments and result on its span. Upstream leaves this off
-  # because they can be sensitive; here they are reads of public repositories,
-  # and the spans stay in the cluster, behind the same owner-only login as the
-  # catalog.
+  # because they can be sensitive; here they are reads of the catalog, and the
+  # spans stay in the cluster, behind the same owner-only login as the catalog.
   tracing:
     capture:
       toolPayload: true
