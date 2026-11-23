@@ -14,6 +14,8 @@ metadata:
     の claude_code_repositories と github_apps が決める。Image Updater の書き戻しは、github-management が張る ruleset
     の bypass に頼る
   annotations:
+    # The Docs tab: how-tos for the steps a person does by hand (mkdocs.yml, docs/).
+    backstage.io/techdocs-ref: dir:.
     # Argo CD and OpenCost keep the part-of their upstream gives them.
     backstage.io/kubernetes-label-selector: app.kubernetes.io/part-of in (infrastructure-as-code,argocd,opencost)
   links:

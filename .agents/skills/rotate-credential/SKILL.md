@@ -14,7 +14,7 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
   | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
   | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token | HCP Terraform | repo secret `TF_API_TOKEN` | — |
+  | HCP Terraform の API token | HCP Terraform（画面の手順は `docs/hcp-terraform-token.md`） | repo secret `TF_API_TOKEN` | — |
   | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
