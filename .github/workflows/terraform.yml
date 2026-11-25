@@ -91,6 +91,18 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
 
+      # The token the `cloud` block authenticates to HCP Terraform with. It sits in
+      # Parameter Store, not a repository secret (terraform/aws.tf lets the role
+      # above read this repository's own one); `mise run hcp:token` writes it.
+      # Masked before it reaches the environment of the steps below.
+      - name: Read the HCP Terraform token
+        run: |
+          set -euo pipefail
+          token=$(aws ssm get-parameter --region ap-northeast-1 --with-decryption \
+            --name /hcp-terraform/infrastructure-as-code --query Parameter.Value --output text)
+          echo "::add-mask::$token"
+          echo "TF_TOKEN_app_terraform_io=$token" >> "$GITHUB_ENV"
+
       # Posts terraform plan/apply results as a PR comment (no github-script).
       - name: Install tfcmt
         env:
@@ -105,10 +117,6 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform Init
-        env:
-          # Authenticates the `cloud` block against HCP Terraform (replaces
-          # setup-terraform's cli_config_credentials_token).
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform init -input=false
 
       - name: Terraform Validate
@@ -117,7 +125,6 @@ jobs:
       - name: Terraform Plan
         if: github.event_name == 'pull_request'
         env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +135,6 @@ jobs:
       - name: Terraform Apply
         if: github.event_name == 'push'
         env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

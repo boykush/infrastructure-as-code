@@ -14,7 +14,7 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
   | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
   | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token | HCP Terraform（画面の手順は `docs/hcp-terraform-token.md`） | repo secret `TF_API_TOKEN` | — |
+  | HCP Terraform の API token（repo ごと） | HCP Terraform（画面の手順は `docs/hcp-terraform-token.md`） | Parameter Store（`/hcp-terraform/<repo>`） | — |
   | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
@@ -101,12 +101,17 @@ mise exec -- aws ssm get-parameter --region ap-northeast-1 --name /claude-code/o
 
 ## CI の token（DO・Cloudflare・HCP）
 
-人間に頼む：各コンソールで発行し直す。要る権限は `terraform/providers.tf` のコメント（DO・Cloudflare）にある。そのうえで値を repo secret に入れる。
+人間に頼む：各コンソールで発行し直す。要る権限は `terraform/providers.tf` のコメント（DO・Cloudflare）にある。そのうえで値を入れる。DO と Cloudflare は repo secret に入れる。
 
 ```sh
 gh secret set DIGITALOCEAN_ACCESS_TOKEN
 gh secret set CLOUDFLARE_API_TOKEN
-gh secret set TF_API_TOKEN
+```
+
+HCP は repo ごとに token を分け、Parameter Store に書く（先に `mise exec -- aws login`）。発行の手順は `docs/hcp-terraform-token.md`。
+
+```sh
+mise run hcp:token <repo>
 ```
 
 - Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
