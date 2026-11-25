@@ -203,6 +203,30 @@ variable "claude_code_repositories" {
   }
 }
 
+variable "hcp_terraform_parameter_path" {
+  type        = string
+  description = "Parameter Store path holding each repository's HCP Terraform API token, as <path>/<repository>. The values are written with `mise run hcp:token`, never by Terraform."
+  default     = "/hcp-terraform"
+
+  validation {
+    condition     = startswith(var.hcp_terraform_parameter_path, "/") && !endswith(var.hcp_terraform_parameter_path, "/")
+    error_message = "hcp_terraform_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+  }
+}
+
+variable "hcp_terraform_repositories" {
+  type        = list(string)
+  description = "Repositories other than this one whose CI reads its own HCP Terraform API token from Parameter Store, each through a role of its own. This repository reads its token with the role it applies with."
+  default = [
+    "github-management",
+  ]
+
+  validation {
+    condition     = length(var.hcp_terraform_repositories) == length(distinct(var.hcp_terraform_repositories))
+    error_message = "Each repository can appear once."
+  }
+}
+
 variable "cluster_secrets_parameter_path" {
   type        = string
   description = "Parameter Store path External Secrets Operator may read. Each ExternalSecret names its parameters in full; by convention they are <path>/<namespace>/<secret>/<key>. The values are written with the CLI, never by Terraform."
