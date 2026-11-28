@@ -9,7 +9,8 @@ CronJob `sync` と Deployment `mcp` が同じ Secret を読む。
 
 期限が近いとき、漏れたかもしれないときに行う。
 
-1. [R2 → Manage API tokens](https://dash.cloudflare.com/?to=/:account/r2/api-tokens) で token を作る。権限は Object Read & Write、対象はバケット `finlake` だけに絞る。
+1. [R2 → Manage API tokens](https://dash.cloudflare.com/?to=/:account/r2/api-tokens) で token を作る。Token name は `cloudflare-finlake-r2`（この Resource と
+   `cloudflare-finlake-r2-secret-access-key` の name の頭）。権限は Object Read & Write、対象はバケット `finlake` だけに絞る。
    期限を付ける。
 2. 出てきた Access Key ID と Secret Access Key を、`mise exec -- aws login` の後、infrastructure-as-code の
    checkout で 1 つずつ貼って Ctrl-D:
@@ -31,5 +32,5 @@ CronJob `sync` と Deployment `mcp` が同じ Secret を読む。
 
 ## 古い値
 
-`sync` と `mcp` の両方が新しい値で動いてから、[R2 → Manage API tokens](https://dash.cloudflare.com/?to=/:account/r2/api-tokens) で古い token を消す。
+`sync` と `mcp` の両方が新しい値で動いてから、[R2 → Manage API tokens](https://dash.cloudflare.com/?to=/:account/r2/api-tokens) で古い token を消す。新旧が同じ名前で並ぶので、作成日で見分ける。
 Parameter Store は上書きしても前の version を履歴に残す（parameter ごとに 100 件まで）。

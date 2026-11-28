@@ -187,10 +187,10 @@ spec:
   owner: user:boykush
   system: runtime
 ---
-# One Resource per parameter in Parameter Store, so the catalog filtered to type
-# ssm-parameter lists them; the title is the path, the name <issuing SaaS>-<purpose>-<value>.
-# Each has TechDocs for a person (issue, write, check, retire) under
-# parameters/<path>/; who reads it stays with its owner.
+# One Resource per parameter in Parameter Store, filtered by type ssm-parameter.
+# title is the path; name is <SaaS>-<purpose>-<value>, and where the issuer has a
+# name field the key is registered as that name (a pair shares its prefix). Each
+# has TechDocs for a person under parameters/<path>/; who reads it stays with its owner.
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
