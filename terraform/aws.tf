@@ -20,8 +20,10 @@ locals {
   secret_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.secrets_parameter_path}"
 
   # What this repository's Terraform runs with, read by the role it applies with.
+  # One HCP token serves every repository: each is an owners team token, so a
+  # token per repository would be the same permissions under two names.
   terraform_secrets = [
-    "hcp-terraform/infrastructure-as-code",
+    "hcp-terraform/owners",
   ]
 
   # Both are paths, so what a policy names is everything under them.
