@@ -205,7 +205,7 @@ variable "claude_code_repositories" {
 
 variable "secrets_parameter_path" {
   type        = string
-  description = "Parameter Store path holding secrets, as <path>/<issuer>/<name> (e.g. hcp-terraform/infrastructure-as-code). The values are written with `mise run secret:write`, never by Terraform."
+  description = "Parameter Store path holding secrets, as <path>/<issuer>/<name> (e.g. hcp-terraform/owners). The values are written with `mise run secret:write`, never by Terraform."
   default     = "/secrets"
 
   validation {
@@ -228,7 +228,7 @@ variable "secret_readers" {
     github-management-terraform = {
       repository = "github-management"
       main_only  = false
-      secrets    = ["hcp-terraform/github-management"]
+      secrets    = ["hcp-terraform/owners"]
     }
   }
 }
