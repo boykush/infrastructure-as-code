@@ -205,7 +205,7 @@ variable "claude_code_repositories" {
 
 variable "ci_secrets_parameter_path" {
   type        = string
-  description = "Parameter Store path holding the credentials workflows run with, as <path>/<issuer>/<name> (e.g. digitalocean/infrastructure-as-code). The values are written with `mise run ci:secret`, never by Terraform."
+  description = "Parameter Store path holding the credentials workflows run with, as <path>/<issuer>/<name> (e.g. hcp-terraform/infrastructure-as-code). The values are written with `mise run ci:secret`, never by Terraform."
   default     = "/ci-secrets"
 
   validation {
@@ -229,12 +229,6 @@ variable "ci_secret_readers" {
       repository = "github-management"
       main_only  = false
       secrets    = ["hcp-terraform/github-management"]
-    }
-    # Node Pool Park / Resume / Status and finlake sync.
-    infrastructure-as-code-doctl = {
-      repository = "infrastructure-as-code"
-      main_only  = true
-      secrets    = ["digitalocean/infrastructure-as-code"]
     }
   }
 }

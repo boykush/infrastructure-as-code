@@ -22,10 +22,6 @@ locals {
   # What this repository's Terraform runs with, read by the role it applies with.
   terraform_ci_secrets = [
     "hcp-terraform/infrastructure-as-code",
-    "digitalocean/infrastructure-as-code",
-    "cloudflare/infrastructure-as-code",
-    "access/github-client-secret",
-    "access/owner-email",
   ]
 
   # Both are paths, so what a policy names is everything under them.
@@ -353,13 +349,6 @@ data "aws_iam_policy_document" "external_secrets_credential" {
     actions   = ["ssm:GetParameter"]
     resources = [local.external_secrets_credential_parameters_arn]
   }
-
-  # The DO token the workflow fetches its kubeconfig with.
-  statement {
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter"]
-    resources = ["${local.ci_secret_arn}/digitalocean/infrastructure-as-code"]
-  }
 }
 
 resource "aws_iam_role" "external_secrets_credential" {
@@ -426,8 +415,8 @@ data "aws_iam_policy_document" "terraform" {
     ])
   }
 
-  # The credentials the workflow reads before `terraform init`: the HCP token and
-  # the providers' tokens (the rest of the role is for applying).
+  # The credentials the workflow reads before `terraform init` (the rest of the
+  # role is for applying).
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
