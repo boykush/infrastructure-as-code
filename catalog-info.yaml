@@ -186,3 +186,183 @@ spec:
   type: secret-store
   owner: user:boykush
   system: runtime
+---
+# One Resource per parameter in Parameter Store, so the catalog filtered to type
+# ssm-parameter lists them. The name is the path with / as -; past 63 characters
+# the cluster-secrets- prefix is dropped. Each has TechDocs for a person (issue,
+# write, check, retire) under parameters/<path>/; who reads it stays with its owner.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: claude-code-oauth-token
+  title: /claude-code/oauth-token
+  description: >-
+    Claude Code Actions の OAuth token。claude_code_repositories の repo の workflow が run の OIDC で読む。有効期間は1年
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/claude-code/oauth-token
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cluster-secrets-argocd-image-updater-git-creds-githubAppID
+  title: /cluster-secrets/argocd/image-updater-git-creds/githubAppID
+  description: >-
+    image-updater-app の App ID（数値）。Secret argocd/image-updater-git-creds に入る
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/argocd/image-updater-git-creds/githubAppID
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: argocd-image-updater-git-creds-githubAppInstallationID
+  title: /cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID
+  description: >-
+    image-updater-app の Installation ID。Secret argocd/image-updater-git-creds に入る
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: argocd-image-updater-git-creds-githubAppPrivateKey
+  title: /cluster-secrets/argocd/image-updater-git-creds/githubAppPrivateKey
+  description: >-
+    image-updater-app の private key。Image Updater が main へ書き戻すときに署名する
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/argocd/image-updater-git-creds/githubAppPrivateKey
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cluster-secrets-backstage-backstage-github-app-privateKey
+  title: /cluster-secrets/backstage/backstage-github-app/privateKey
+  description: >-
+    repo-reader-app の private key。Backstage が各 repo の catalog-info.yaml を読むときに署名する
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/backstage/backstage-github-app/privateKey
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cluster-secrets-cloudflared-cloudflared-tunnel-token-token
+  title: /cluster-secrets/cloudflared/cloudflared-tunnel-token/token
+  description: >-
+    cloudflared が Cloudflare Tunnel に繋ぐ token。tunnel を作り直したときだけ変わる
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/cloudflared/cloudflared-tunnel-token/token
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: finlake-finlake-r2-sync-FINLAKE_S3_ACCESS_KEY_ID
+  title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ACCESS_KEY_ID
+  description: >-
+    finlake の R2 API token の Access Key ID。sync と mcp が読む。SECRET_ACCESS_KEY と対で替わる
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ACCESS_KEY_ID
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cluster-secrets-finlake-finlake-r2-sync-FINLAKE_S3_ENDPOINT
+  title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ENDPOINT
+  description: >-
+    finlake が R2 に繋ぐ S3 エンドポイント。秘密ではないが account id を git に置かないためここにある
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ENDPOINT
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: finlake-finlake-r2-sync-FINLAKE_S3_SECRET_ACCESS_KEY
+  title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_SECRET_ACCESS_KEY
+  description: >-
+    finlake の R2 API token の Secret Access Key。ACCESS_KEY_ID と対で替わる
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_SECRET_ACCESS_KEY
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: external-secrets-access-key-id
+  title: /external-secrets/access-key-id
+  description: >-
+    External Secrets Operator が Parameter Store を読む IAM access key の ID。secret-access-key と対で替わる
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/external-secrets/access-key-id
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: external-secrets-secret-access-key
+  title: /external-secrets/secret-access-key
+  description: >-
+    External Secrets Operator の IAM access key の secret。access-key-id と対で替わる
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/external-secrets/secret-access-key
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store

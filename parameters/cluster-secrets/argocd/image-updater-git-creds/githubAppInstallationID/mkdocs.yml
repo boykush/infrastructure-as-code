@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID (catalog-info.yaml).
+site_name: /cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID
+plugins:
+  - techdocs-core
