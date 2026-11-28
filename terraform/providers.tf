@@ -1,15 +1,13 @@
 # Authentication comes from DIGITALOCEAN_ACCESS_TOKEN, a custom-scoped PAT: kubernetes
-# and vpc (all), tag (create, read), account/actions/regions/sizes (read). It lives in
-# Parameter Store as /ci-secrets/digitalocean/infrastructure-as-code, read from there
-# by CI and locally alike. The provider also accepts DIGITALOCEAN_TOKEN; this name is
-# the one doctl reads too, so one covers both tools.
+# and vpc (all), tag (create, read), account/actions/regions/sizes (read). Set locally
+# and from the repository secret of the same name in CI. The provider also accepts
+# DIGITALOCEAN_TOKEN; this name is the one doctl reads too, so one covers both tools.
 provider "digitalocean" {}
 
 # Authentication comes from CLOUDFLARE_API_TOKEN, a scoped token rather than the
 # account-wide global key. Account: Cloudflare Tunnel, Workers R2 Storage (Edit);
 # Access: Apps, Policies, Identity Providers (Write). Zone: DNS, Transform Rules
-# (Edit); Zone (Read), as the zone and account IDs are looked up by name. It lives in
-# Parameter Store as /ci-secrets/cloudflare/infrastructure-as-code.
+# (Edit); Zone (Read), as the zone and account IDs are looked up by name.
 provider "cloudflare" {}
 
 # Authentication comes from the environment: a local profile or SSO session on

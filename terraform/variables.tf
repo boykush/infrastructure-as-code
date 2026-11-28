@@ -122,13 +122,13 @@ variable "tunnel_routes" {
 variable "access_owner_email" {
   type        = string
   sensitive   = true
-  description = "The owner's address: the one Cloudflare Access lets through (access.tf), and where the AWS budget alerts go (aws.tf). Kept out of this public repository: CI reads it from /ci-secrets/access/owner-email into TF_VAR_access_owner_email."
+  description = "The owner's address: the one Cloudflare Access lets through (access.tf), and where the AWS budget alerts go (aws.tf). Kept out of this public repository: CI passes it from the ACCESS_OWNER_EMAIL secret as TF_VAR_access_owner_email."
 
   # An unset Actions secret expands to an empty string rather than failing, which
   # would plan cleanly into a policy that admits no one.
   validation {
     condition     = can(regex("^[^@\\s]+@[^@\\s]+$", var.access_owner_email))
-    error_message = "access_owner_email must be an email address; check /ci-secrets/access/owner-email."
+    error_message = "access_owner_email must be an email address; check the ACCESS_OWNER_EMAIL secret."
   }
 }
 
@@ -139,13 +139,13 @@ variable "access_owner_email" {
 variable "access_github_client_secret" {
   type        = string
   sensitive   = true
-  description = "Client secret of the GitHub OAuth App that Access logs in through (access.tf). CI reads it from /ci-secrets/access/github-client-secret into TF_VAR_access_github_client_secret."
+  description = "Client secret of the GitHub OAuth App that Access logs in through (access.tf). CI passes it from the ACCESS_GITHUB_CLIENT_SECRET secret as TF_VAR_access_github_client_secret."
 
   # Empty is what an unset secret expands to, and a pasted line break would pass
   # for part of the value; either plans cleanly and fails only at login.
   validation {
     condition     = can(regex("^\\S+$", var.access_github_client_secret))
-    error_message = "access_github_client_secret must be one word with no whitespace; check /ci-secrets/access/github-client-secret."
+    error_message = "access_github_client_secret must be one word with no whitespace; check the ACCESS_GITHUB_CLIENT_SECRET secret."
   }
 }
 

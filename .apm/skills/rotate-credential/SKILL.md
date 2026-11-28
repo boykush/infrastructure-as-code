@@ -12,7 +12,9 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | 値 | 発行する場所 | 置き場 | 要る権限 |
   | --- | --- | --- | --- |
   | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
-  | CI の token（DO・Cloudflare・HCP） | 鍵ごとの TechDocs（下の「CI の token」） | Parameter Store（`/ci-secrets`） | 同じ TechDocs |
+  | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
+  | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
+  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「CI の token」） | Parameter Store（`/ci-secrets/hcp-terraform/<repo>`） | — |
   | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
@@ -99,11 +101,20 @@ mise exec -- aws ssm get-parameter --region ap-northeast-1 --name /claude-code/o
 
 ## CI の token（DO・Cloudflare・HCP）
 
-人間に頼む：各コンソールで発行し直す。`/ci-secrets` の parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs（`ci-secrets/<発行元>/<名前>/`）が発行先の URL・名前・書き方・確かめ方を持つ。人にはそのページを渡す。token の名前（Description）は、置き場所ではなく権限の束で付ける（例: `infrastructure-as-code`。CI と手元が同じ token を読むので `CI` を付けない）。
+人間に頼む：各コンソールで発行し直す。要る権限は `terraform/providers.tf` のコメント（DO・Cloudflare）にある。DO と Cloudflare は値を repo secret に入れる。
 
-値は `mise run ci:secret <発行元>/<名前>` で書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_ci_secrets` と `var.ci_secret_readers` が持つ。
+```sh
+gh secret set DIGITALOCEAN_ACCESS_TOKEN
+gh secret set CLOUDFLARE_API_TOKEN
+```
 
-- parameter を増やすときは、`catalog-info.yaml` の Resource と `ci-secrets/` の TechDocs も足す。消すときも同じ。
+HCP の token は Parameter Store の `/ci-secrets/hcp-terraform/<repo>` に置く。parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs（`ci-secrets/<発行元>/<名前>/`）が人向けの手順を持つ。人にはそのページを渡す。値は `mise run ci:secret hcp-terraform/<repo>` で書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_ci_secrets` と `var.ci_secret_readers` が持つ。
+
+- `/ci-secrets` に parameter を増やすときは、`catalog-info.yaml` の Resource と `ci-secrets/` の TechDocs も足す。消すときも同じ。
+
+- Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
+- DO の PAT を替えたら、手元の `doctl auth init` もやり直してもらう。
+- 入れた後、PR の `terraform plan` が通ることと、夜間停止の次の run が通ることを確かめる。DO の PAT が切れると resume が失敗し、クラスタが止まったまま戻らない。
 
 ## External Secrets Operator の access key
 
@@ -120,5 +131,6 @@ gh workflow run external-secrets-credential.yml
 
 Backstage・Argo CD・Jaeger と非公開の MCP の前段にある Access は、owner の OAuth App で GitHub ログインする。GitHub には OAuth App を作る API が無いので、人間に頼む。
 
-- 作り方：Settings → Developer settings → OAuth Apps。Homepage URL は `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL は `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback`。Client ID は `terraform/access.tf` に書き、Client secret は `mise run ci:secret access/github-client-secret` で書く（CI が `TF_VAR_access_github_client_secret` で渡す）。
-- Client secret の入れ替えと、通すメールアドレスは、それぞれの parameter の TechDocs（`ci-secrets/access/`）にある。
+- 作り方：Settings → Developer settings → OAuth Apps。Homepage URL は `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL は `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback`。Client ID は `terraform/access.tf` に書き、Client secret は repo secret `ACCESS_GITHUB_CLIENT_SECRET`（CI が `TF_VAR_access_github_client_secret` で渡す）。
+- Client secret を替えるとき：OAuth App に新しい secret を足し、`ACCESS_GITHUB_CLIENT_SECRET` を差し替え、次の apply で Cloudflare に届いてから古い方を消す。
+- 通すメールアドレスは repo secret `ACCESS_OWNER_EMAIL`（public repo に置かない）。照合相手は GitHub がログインしたアカウントについて返すアドレスで、Zero Trust ダッシュボードの GitHub のログイン方法で Test を押すと見られる。
