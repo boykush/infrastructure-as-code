@@ -14,4 +14,4 @@ mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ENDPOINT
 mise exec -- kubectl -n finlake rollout restart deployment/mcp
 ```
 
-確かめ方は [`FINLAKE_S3_ACCESS_KEY_ID`](https://backstage.boykush.com/docs/default/resource/finlake-finlake-r2-sync-FINLAKE_S3_ACCESS_KEY_ID/) のページと同じ。
+確かめ方は [`FINLAKE_S3_ACCESS_KEY_ID`](https://backstage.boykush.com/docs/default/resource/cloudflare-finlake-r2-access-key-id/) のページと同じ。

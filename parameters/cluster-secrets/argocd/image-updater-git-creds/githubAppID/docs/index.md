@@ -14,4 +14,4 @@ App を作り直したときだけ変わる。`mise exec -- aws login` の後:
 echo <App ID> | mise run cluster:secret argocd image-updater-git-creds githubAppID
 ```
 
-確かめ方と古い鍵の扱いは [githubAppPrivateKey](https://backstage.boykush.com/docs/default/resource/argocd-image-updater-git-creds-githubAppPrivateKey/) のページにある。
+確かめ方と古い鍵の扱いは [githubAppPrivateKey](https://backstage.boykush.com/docs/default/resource/github-image-updater-private-key/) のページにある。
