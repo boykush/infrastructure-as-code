@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /ci-secrets/digitalocean/infrastructure-as-code (catalog-info.yaml).
+site_name: /ci-secrets/digitalocean/infrastructure-as-code
+plugins:
+  - techdocs-core

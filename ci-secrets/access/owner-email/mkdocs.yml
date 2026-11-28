@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /ci-secrets/access/owner-email (catalog-info.yaml).
+site_name: /ci-secrets/access/owner-email
+plugins:
+  - techdocs-core

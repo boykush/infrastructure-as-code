@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /ci-secrets/access/github-client-secret (catalog-info.yaml).
+site_name: /ci-secrets/access/github-client-secret
+plugins:
+  - techdocs-core

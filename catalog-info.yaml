@@ -186,3 +186,97 @@ spec:
   type: secret-store
   owner: user:boykush
   system: runtime
+---
+# One Resource per parameter under /ci-secrets, so the catalog filtered to
+# type ssm-parameter is the parameter list. Each has its own TechDocs (where to
+# issue it, how to write and check it) under ci-secrets/<issuer>/<name>/, the
+# same path as the parameter. Who reads which is terraform/aws.tf's alone.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-hcp-terraform-infrastructure-as-code
+  title: /ci-secrets/hcp-terraform/infrastructure-as-code
+  description: HCP Terraform の Team token（owners）。infrastructure-as-code の Terraform が state に入るのに使う
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/hcp-terraform/infrastructure-as-code
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-hcp-terraform-github-management
+  title: /ci-secrets/hcp-terraform/github-management
+  description: HCP Terraform の Team token（owners）。github-management の Terraform が state に入るのに使う
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/hcp-terraform/github-management
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-digitalocean-infrastructure-as-code
+  title: /ci-secrets/digitalocean/infrastructure-as-code
+  description: DigitalOcean の PAT。Terraform と、夜間の Node Pool Park / Resume の doctl が使う
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/digitalocean/infrastructure-as-code
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-cloudflare-infrastructure-as-code
+  title: /ci-secrets/cloudflare/infrastructure-as-code
+  description: Cloudflare の Account API token。Terraform が Tunnel・DNS・Access・R2 を管理するのに使う
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/cloudflare/infrastructure-as-code
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-access-github-client-secret
+  title: /ci-secrets/access/github-client-secret
+  description: Cloudflare Access の GitHub ログインに使う OAuth App の Client secret。Terraform が Access に渡す
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/access/github-client-secret
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ci-secret-access-owner-email
+  title: /ci-secrets/access/owner-email
+  description: Cloudflare Access が通すメールアドレス。public repo に置かないためにここに置く
+  annotations:
+    backstage.io/techdocs-ref: dir:./ci-secrets/access/owner-email
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
