@@ -89,7 +89,7 @@ jobs:
       # terraform binary (no stdout-capturing wrapper), which is what tfcmt
       # needs to parse plan/apply output.
       - name: Setup mise
-        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
 
       # Posts terraform plan/apply results as a PR comment (no github-script).
       - name: Install tfcmt
