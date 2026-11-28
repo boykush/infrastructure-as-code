@@ -9,7 +9,7 @@ github-management の Terraform の job がすべて `terraform init` で止ま�
 [HCP Terraform の API token](https://backstage.boykush.com/docs/default/component/infrastructure-as-code/hcp-terraform-token/)
 にある。この鍵に固有なのは次の 2 つだけ。
 
-- Description: `github-management`
+- Description: `hcp-terraform-github-management-team-token`（この Resource の name）
 - 書く: `mise run secret:write hcp-terraform/github-management`（infrastructure-as-code の checkout で）
 
 確かめるのは、github-management の開いている PR の Terraform の job。

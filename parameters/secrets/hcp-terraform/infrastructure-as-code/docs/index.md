@@ -9,7 +9,7 @@ Terraform の job がすべて `terraform init` で止まる。
 [HCP Terraform の API token](https://backstage.boykush.com/docs/default/component/infrastructure-as-code/hcp-terraform-token/)
 にある。この鍵に固有なのは次の 2 つだけ。
 
-- Description: `infrastructure-as-code`
+- Description: `hcp-terraform-infrastructure-as-code-team-token`（この Resource の name）
 - 書く: `mise run secret:write hcp-terraform/infrastructure-as-code`
 
 確かめるのは、この repo の開いている PR の Terraform の job。

@@ -370,7 +370,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: secrets-hcp-terraform-infrastructure-as-code
+  name: hcp-terraform-infrastructure-as-code-team-token
   title: /secrets/hcp-terraform/infrastructure-as-code
   description: >-
     HCP Terraform の Team token（owners）。infrastructure-as-code の Terraform が state に入るのに使う
@@ -386,7 +386,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: secrets-hcp-terraform-github-management
+  name: hcp-terraform-github-management-team-token
   title: /secrets/hcp-terraform/github-management
   description: >-
     HCP Terraform の Team token（owners）。github-management の Terraform が state に入るのに使う

@@ -22,7 +22,7 @@ repo の分を読み、`TF_TOKEN_app_terraform_io` として渡す。どの work
 
 1. HCP Terraform の Organization `boykush` で、**Settings → API tokens → Team Tokens** タブを開く。
 2. `owners` team の token を新しく作る。
-   - **Description は必ず付ける**。token を使う repo の名前にする（例: `infrastructure-as-code`）。Description の無い token は legacy token
+   - **Description は必ず付ける**。その鍵の Resource の name にする（例: `hcp-terraform-infrastructure-as-code-team-token`。各鍵のページにある）。Description の無い token は legacy token
      として扱われ、team に1つしか持てない。新しく legacy token を作ると、前の legacy token が無効になる。
    - 期限（Expiration）を付ける。
 3. 表示された値をコピーする。**値は作成時の1回しか表示されない。**
