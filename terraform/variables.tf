@@ -203,6 +203,36 @@ variable "claude_code_repositories" {
   }
 }
 
+variable "secrets_parameter_path" {
+  type        = string
+  description = "Parameter Store path holding secrets, as <path>/<issuer>/<name> (e.g. hcp-terraform/infrastructure-as-code). The values are written with `mise run secret:write`, never by Terraform."
+  default     = "/secrets"
+
+  validation {
+    condition     = startswith(var.secrets_parameter_path, "/") && !endswith(var.secrets_parameter_path, "/")
+    error_message = "secrets_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+  }
+}
+
+variable "secret_readers" {
+  type = map(object({
+    repository = string
+    # Trust main only. Right for anything that runs on schedule or dispatch; a
+    # reader a pull request needs (a plan) must leave it false.
+    main_only = bool
+    # Names under secrets_parameter_path.
+    secrets = list(string)
+  }))
+  description = "Workflows other than this repository's Terraform that read secrets, each through a role of its own named github-actions-secrets-<key>. This repository's Terraform reads with the role it applies with."
+  default = {
+    github-management-terraform = {
+      repository = "github-management"
+      main_only  = false
+      secrets    = ["hcp-terraform/github-management"]
+    }
+  }
+}
+
 variable "cluster_secrets_parameter_path" {
   type        = string
   description = "Parameter Store path External Secrets Operator may read. Each ExternalSecret names its parameters in full; by convention they are <path>/<namespace>/<secret>/<key>. The values are written with the CLI, never by Terraform."

@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /external-secrets/secret-access-key (catalog-info.yaml).
+site_name: /external-secrets/secret-access-key
+plugins:
+  - techdocs-core

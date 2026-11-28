@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ENDPOINT (catalog-info.yaml).
+site_name: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ENDPOINT
+plugins:
+  - techdocs-core

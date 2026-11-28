@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /cluster-secrets/cloudflared/cloudflared-tunnel-token/token (catalog-info.yaml).
+site_name: /cluster-secrets/cloudflared/cloudflared-tunnel-token/token
+plugins:
+  - techdocs-core

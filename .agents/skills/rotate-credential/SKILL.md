@@ -11,11 +11,11 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
 
   | 値 | 発行する場所 | 置き場 | 要る権限 |
   | --- | --- | --- | --- |
-  | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
+  | Claude Code のトークン | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store | — |
   | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
   | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「CI の token」） | Parameter Store（`/secrets/hcp-terraform/<repo>`） | — |
-  | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
+  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store（`/secrets/hcp-terraform/<repo>`） | — |
+  | finlake の R2 token | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store | 鍵ごとの TechDocs |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
 - AWS に書くものは、先に `mise exec -- aws login` を頼む（ブラウザが開いてパスキーで通る）。`mise exec -- aws sts get-caller-identity` が account id を返せば通っている。
@@ -34,70 +34,12 @@ mise run cluster:secret <namespace> <secret> <key>   # 値を貼って Ctrl-D
 - Secret ができるまで、それを読む Pod は `CreateContainerConfigError` で止まる。
 - Secret を増やすときは、app の directory に `ExternalSecret` を足し、同じ名前の parameter を書く。operator が読めるのは `terraform/variables.tf` の `cluster_secrets_parameter_path` の下だけ。
 
-### tunnel token
+## Parameter Store の鍵
 
-tunnel を作り直したときだけ。値は Terraform の output から取る（`tf:login` 済みであること）。
+Parameter Store の parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs が人向けの手順——何の値か、発行する場所、入れ方、確かめ方、古い値の消し方——を持つ。実体は `parameters/<パスの先頭の / を除いたもの>/docs/index.md`。入れ替えるときはそのページを読んで進め、人には Backstage のそのページを渡す。
 
-```sh
-mise exec -- terraform -chdir=terraform output -raw tunnel_token \
-  | mise run cluster:secret cloudflared cloudflared-tunnel-token token
-```
-
-### finlake の R2 token
-
-人間に頼む：ダッシュボードの R2 → Manage API tokens で、権限 Object Read & Write、対象をバケット `finlake` だけに絞って作る。出てくる Access Key ID / Secret Access Key と、S3 のエンドポイント（`https://` を除いた `<account_id>.r2.cloudflarestorage.com`）を受け取る。account id は git のどこにも無い（Terraform が domain から引く）ので、エンドポイントも Secret に置いている。
-
-```sh
-mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ENDPOINT
-mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_ACCESS_KEY_ID
-mise run cluster:secret finlake finlake-r2-sync FINLAKE_S3_SECRET_ACCESS_KEY
-mise exec -- kubectl -n finlake rollout restart deployment/mcp
-```
-
-`sync` の CronJob と `mcp` が同じ Secret を読む。古い token は、両方が新しい値で動いてからダッシュボードで消す。
-
-### Image Updater の GitHub App
-
-Image Updater の git write-back には main への push 権限が要る。**PAT では通らない**——main の ruleset（`boykush/github-management` が張る Require pull request と required check）を bypass できるのは GitHub App だけ。App の id は github-management の ruleset module の bypass actor にも載っている必要がある。App に要る権限は Contents: write、install 先はこの repo だけ。
-
-この App の鍵だけは KMS に入れない（Image Updater がクラスタの中で自分で JWT に署名するので、鍵そのものが要る）。**PEM も GitHub には置かない。**
-
-```sh
-echo <App ID> | mise run cluster:secret argocd image-updater-git-creds githubAppID
-echo <Installation ID> | mise run cluster:secret argocd image-updater-git-creds githubAppInstallationID
-mise run cluster:secret argocd image-updater-git-creds githubAppPrivateKey < <app>.private-key.pem
-```
-
-- `githubAppID` は **App ID（数値）**。Image Updater は base 10 で parse するので、Client ID を入れると `invalid value in field githubAppID` で落ちる。
-- 鍵を入れ替えるときは、App に新しい鍵を足す → 入れる → 反映を確かめる → 古い鍵を App から revoke、の順なら止まる時間ができない。入れ終えたら手元の PEM を消してもらう。
-- Secret が無いと、Image Updater は Pod が落ちないまま `could not get creds for repo` をログに出し続ける。digest が動かないときは、まずここを見る。
-
-### Backstage の repo-reader App
-
-Backstage が各 repo の `catalog-info.yaml` を読む App（Contents と Metadata の read だけ、全 repo に install）。Backstage は自分で JWT に署名するので、この鍵は KMS に入れない。App ID と Client ID は識別子なので `applications/backstage/app-config.yaml` に直接書いてある。
-
-```sh
-mise run cluster:secret backstage backstage-github-app privateKey < <app>.private-key.pem
-mise exec -- kubectl -n backstage rollout restart deployment/backstage
-```
-
-- 入れ替えるときは、App に新しい鍵を足す → 入れる → catalog が読めているのを確かめる → 古い鍵を App から revoke、の順。入れ終えたら手元の PEM を消してもらう。
-- 鍵が無いと Backstage は起動しない（`CreateContainerConfigError`）。鍵が古いと起動はするが、Discovery が 401 を出し、repo の entity が増えも減りもしなくなる。
-
-## Claude Code のトークン
-
-有効期間は1年。期限が近いとき、漏れたかもしれないときに入れ替える。
-
-1. 人間に `claude setup-token` を実行してもらい、出力を受け取る。
-2. 貼ってもらう。端末幅で折り返された値には改行が混ざるので、task が空白を落とし、`sk-ant-oat` で始まるかを確かめている。
-
-```sh
-mise run claude:token
-mise exec -- aws ssm get-parameter --region ap-northeast-1 --name /claude-code/oauth-token \
-  --query 'Parameter.{Version:Version,Type:Type}'
-```
-
-確かめるのは version が上がったことだけで、値は出さない。読む側の repo は何も触らなくていい。経路全体が通ったかは、トークンを読む workflow（ai-review を入れた repo の PR の review）が次に動いたときにしか分からない。
+- parameter を増やす・消すときは、`catalog-info.yaml` の Resource と `parameters/` の TechDocs も足す・消す。
+- Image Updater の App は **PAT で代えられない**——main の ruleset（`boykush/github-management` が張る）を bypass できるのは GitHub App だけで、App の id は github-management の ruleset module の bypass actor にも載っている必要がある。App に要る権限は Contents: write、install 先はこの repo だけ。
 
 ## CI の token（DO・Cloudflare・HCP）
 
@@ -108,24 +50,11 @@ gh secret set DIGITALOCEAN_ACCESS_TOKEN
 gh secret set CLOUDFLARE_API_TOKEN
 ```
 
-HCP の token は Parameter Store の `/secrets/hcp-terraform/<repo>` に置く。parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs（`parameters/secrets/<発行元>/<名前>/`）が人向けの手順を持つ。人にはそのページを渡す。値は `mise run secret:write hcp-terraform/<repo>` で書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_secrets` と `var.secret_readers` が持つ。
-
-- `/secrets` に parameter を増やすときは、`catalog-info.yaml` の Resource と `parameters/` の TechDocs も足す。消すときも同じ。
+HCP の token は Parameter Store の `/secrets/hcp-terraform/<repo>` にあり、手順は上の「Parameter Store の鍵」のとおり鍵ごとの TechDocs が持つ。値は `mise run secret:write hcp-terraform/<repo>` で書く。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_secrets` と `var.secret_readers` が持つ。
 
 - Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
 - DO の PAT を替えたら、手元の `doctl auth init` もやり直してもらう。
 - 入れた後、PR の `terraform plan` が通ることと、夜間停止の次の run が通ることを確かめる。DO の PAT が切れると resume が失敗し、クラスタが止まったまま戻らない。
-
-## External Secrets Operator の access key
-
-AWS に残る唯一の長命な鍵。入れ替えるときも、クラスタを作り直したときも同じ。作り直しなら2行目だけでいい。
-
-```sh
-mise run external-secrets:key
-gh workflow run external-secrets-credential.yml
-```
-
-`external-secrets:key` は古い鍵を消してから新しい鍵を作る。workflow が届けるまで operator は同期できないが、クラスタにある Secret はそのまま残るので、止まるのは更新だけ。
 
 ## Access の GitHub ログイン
 

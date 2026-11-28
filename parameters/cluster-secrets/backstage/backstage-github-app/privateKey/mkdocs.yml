@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /cluster-secrets/backstage/backstage-github-app/privateKey (catalog-info.yaml).
+site_name: /cluster-secrets/backstage/backstage-github-app/privateKey
+plugins:
+  - techdocs-core
