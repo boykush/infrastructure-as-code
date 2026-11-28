@@ -203,27 +203,27 @@ variable "claude_code_repositories" {
   }
 }
 
-variable "ci_secrets_parameter_path" {
+variable "secrets_parameter_path" {
   type        = string
-  description = "Parameter Store path holding the credentials workflows run with, as <path>/<issuer>/<name> (e.g. hcp-terraform/infrastructure-as-code). The values are written with `mise run ci:secret`, never by Terraform."
-  default     = "/ci-secrets"
+  description = "Parameter Store path holding secrets, as <path>/<issuer>/<name> (e.g. hcp-terraform/infrastructure-as-code). The values are written with `mise run secret:write`, never by Terraform."
+  default     = "/secrets"
 
   validation {
-    condition     = startswith(var.ci_secrets_parameter_path, "/") && !endswith(var.ci_secrets_parameter_path, "/")
-    error_message = "ci_secrets_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+    condition     = startswith(var.secrets_parameter_path, "/") && !endswith(var.secrets_parameter_path, "/")
+    error_message = "secrets_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
   }
 }
 
-variable "ci_secret_readers" {
+variable "secret_readers" {
   type = map(object({
     repository = string
     # Trust main only. Right for anything that runs on schedule or dispatch; a
     # reader a pull request needs (a plan) must leave it false.
     main_only = bool
-    # Names under ci_secrets_parameter_path.
+    # Names under secrets_parameter_path.
     secrets = list(string)
   }))
-  description = "Workflows other than this repository's Terraform that read CI secrets, each through a role of its own named github-actions-ci-secrets-<key>. This repository's Terraform reads with the role it applies with."
+  description = "Workflows other than this repository's Terraform that read secrets, each through a role of its own named github-actions-secrets-<key>. This repository's Terraform reads with the role it applies with."
   default = {
     github-management-terraform = {
       repository = "github-management"

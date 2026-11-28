@@ -14,13 +14,13 @@ locals {
 
   claude_code_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
 
-  # A CI secret is one parameter, named after what issued it and the permissions it
-  # carries, not after who reads it: every reader of the same credential reads the
-  # same parameter. Who may read which is declared below, per role.
-  ci_secret_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.ci_secrets_parameter_path}"
+  # A secret is one parameter, named after what issued it and the permissions it
+  # carries, not after who reads it: CI and a workstation alike read the same
+  # parameter. Who may read which is declared below, per role.
+  secret_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.secrets_parameter_path}"
 
   # What this repository's Terraform runs with, read by the role it applies with.
-  terraform_ci_secrets = [
+  terraform_secrets = [
     "hcp-terraform/infrastructure-as-code",
   ]
 
@@ -35,7 +35,7 @@ locals {
   external_secrets_user_name = "external-secrets"
   budget_name                = "monthly"
   github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
-  ci_secrets_role_names      = { for name, reader in var.ci_secret_readers : name => "github-actions-ci-secrets-${name}" }
+  secret_role_names          = { for name, reader in var.secret_readers : name => "github-actions-secrets-${name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
   # 2026-07-15, and for older ones once they opt in. Both spellings are listed
@@ -410,7 +410,7 @@ data "aws_iam_policy_document" "terraform" {
       "arn:aws:iam::${local.aws_account_id}:role/${local.external_secrets_role_name}",
       "arn:aws:iam::${local.aws_account_id}:user/${local.external_secrets_user_name}",
       ], [
-      for name in concat(values(local.github_app_role_names), values(local.ci_secrets_role_names)) :
+      for name in concat(values(local.github_app_role_names), values(local.secret_role_names)) :
       "arn:aws:iam::${local.aws_account_id}:role/${name}"
     ])
   }
@@ -420,7 +420,7 @@ data "aws_iam_policy_document" "terraform" {
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [for name in local.terraform_ci_secrets : "${local.ci_secret_arn}/${name}"]
+    resources = [for name in local.terraform_secrets : "${local.secret_arn}/${name}"]
   }
 
   # Neither of these names a resource: the key does not exist yet when it is
@@ -513,12 +513,12 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
-# The readers of CI secrets that are not this repository's Terraform: one role
+# The workflows reading secrets that are not this repository's Terraform: one role
 # each, trusted for one repository and reading only the parameters listed for it.
 # A reader that runs on main alone (schedules, dispatches) is trusted on main
 # alone, so a pull request's code cannot read what it never needs.
-data "aws_iam_policy_document" "ci_secrets_trust" {
-  for_each = var.ci_secret_readers
+data "aws_iam_policy_document" "secrets_trust" {
+  for_each = var.secret_readers
 
   statement {
     effect  = "Allow"
@@ -547,32 +547,32 @@ data "aws_iam_policy_document" "ci_secrets_trust" {
 }
 
 # The parameters are not resources, for the same reason as the Claude Code token.
-data "aws_iam_policy_document" "ci_secrets" {
-  for_each = var.ci_secret_readers
+data "aws_iam_policy_document" "secrets" {
+  for_each = var.secret_readers
 
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [for name in each.value.secrets : "${local.ci_secret_arn}/${name}"]
+    resources = [for name in each.value.secrets : "${local.secret_arn}/${name}"]
   }
 }
 
-resource "aws_iam_role" "ci_secrets" {
-  for_each = var.ci_secret_readers
+resource "aws_iam_role" "secrets" {
+  for_each = var.secret_readers
 
   # Same ordering as the GitHub App roles: iam:CreateRole on this ARN is granted
   # by the policy update in this apply.
   depends_on = [aws_iam_role_policy.terraform]
 
-  name               = local.ci_secrets_role_names[each.key]
+  name               = local.secret_role_names[each.key]
   description        = "Read ${join(", ", each.value.secrets)} from Parameter Store, for ${each.value.repository}'s CI"
-  assume_role_policy = data.aws_iam_policy_document.ci_secrets_trust[each.key].json
+  assume_role_policy = data.aws_iam_policy_document.secrets_trust[each.key].json
 }
 
-resource "aws_iam_role_policy" "ci_secrets" {
-  for_each = aws_iam_role.ci_secrets
+resource "aws_iam_role_policy" "secrets" {
+  for_each = aws_iam_role.secrets
 
-  name   = "read-ci-secrets"
+  name   = "read-secrets"
   role   = each.value.id
-  policy = data.aws_iam_policy_document.ci_secrets[each.key].json
+  policy = data.aws_iam_policy_document.secrets[each.key].json
 }
