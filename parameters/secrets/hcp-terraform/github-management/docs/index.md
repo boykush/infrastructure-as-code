@@ -1,4 +1,4 @@
-# /ci-secrets/hcp-terraform/github-management
+# /secrets/hcp-terraform/github-management
 
 github-management の Terraform が HCP Terraform の state と lock に入るための token。切れると、
 github-management の Terraform の job がすべて `terraform init` で止まる。
@@ -10,11 +10,11 @@ github-management の Terraform の job がすべて `terraform init` で止ま�
 にある。この鍵に固有なのは次の 2 つだけ。
 
 - Description: `github-management`
-- 書く: `mise run ci:secret hcp-terraform/github-management`（infrastructure-as-code の checkout で）
+- 書く: `mise run secret:write hcp-terraform/github-management`（infrastructure-as-code の checkout で）
 
 確かめるのは、github-management の開いている PR の Terraform の job。
 
 ## 誰が読むか
 
 [`terraform/variables.tf`](https://github.com/boykush/infrastructure-as-code/blob/main/terraform/variables.tf) の
-`ci_secret_readers` が持つ。
+`secret_readers` が持つ。

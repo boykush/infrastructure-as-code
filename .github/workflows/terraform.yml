@@ -93,10 +93,10 @@ jobs:
 
       # The HCP token the `cloud` block authenticates with sits in Parameter
       # Store, not a repository secret: the role above may read it
-      # (terraform/aws.tf), and `mise run ci:secret` writes it.
-      - name: Read the CI secrets
+      # (terraform/aws.tf), and `mise run secret:write` writes it.
+      - name: Read the secrets
         run: >-
-          mise run ci:read-secrets
+          mise run secret:export
           TF_TOKEN_app_terraform_io=hcp-terraform/infrastructure-as-code
 
       # Posts terraform plan/apply results as a PR comment (no github-script).

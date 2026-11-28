@@ -8,9 +8,9 @@ Error: Failed to read organization "boykush" at host app.terraform.io
 Encountered an unexpected error while reading the organization settings: unauthorized
 ```
 
-token は repo ごとに分け、AWS の Parameter Store に `/ci-secrets/hcp-terraform/<repo>` として置く。workflow が自分の
+token は repo ごとに分け、AWS の Parameter Store に `/secrets/hcp-terraform/<repo>` として置く。workflow が自分の
 repo の分を読み、`TF_TOKEN_app_terraform_io` として渡す。どの workflow が読めるかは `terraform/aws.tf` の
-`local.terraform_ci_secrets` と、`terraform/variables.tf` の `ci_secret_readers` が持つ。
+`local.terraform_secrets` と、`terraform/variables.tf` の `secret_readers` が持つ。
 
 期限の 30 日前と 7 日前に、HCP Terraform から通知のメールが来る。期限は作った後から延ばせないので、入れ替えは
 新しい token を作ることになる。
@@ -39,7 +39,7 @@ mise exec -- aws sts get-caller-identity   # account id が返れば通ってい
 値は端末に表示させず、プロンプトに貼り付けて Ctrl-D で入れる。`<repo>` は token を使う repo の名前。
 
 ```sh
-mise run ci:secret hcp-terraform/<repo>
+mise run secret:write hcp-terraform/<repo>
 ```
 
 ## 3. 確かめる

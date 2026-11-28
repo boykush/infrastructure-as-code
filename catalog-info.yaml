@@ -187,18 +187,18 @@ spec:
   owner: user:boykush
   system: runtime
 ---
-# One Resource per parameter under /ci-secrets, so the catalog filtered to
+# One Resource per parameter under /secrets, so the catalog filtered to
 # type ssm-parameter lists them. Each has its own TechDocs (where to
-# issue it, how to write and check it) under ci-secrets/<issuer>/<name>/, the
+# issue it, how to write and check it) under parameters/, at the
 # same path as the parameter. Who reads which is terraform/aws.tf's alone.
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: ci-secret-hcp-terraform-infrastructure-as-code
-  title: /ci-secrets/hcp-terraform/infrastructure-as-code
+  name: secret-hcp-terraform-infrastructure-as-code
+  title: /secrets/hcp-terraform/infrastructure-as-code
   description: HCP Terraform の Team token（owners）。infrastructure-as-code の Terraform が state に入るのに使う
   annotations:
-    backstage.io/techdocs-ref: dir:./ci-secrets/hcp-terraform/infrastructure-as-code
+    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/infrastructure-as-code
 spec:
   type: ssm-parameter
   owner: user:boykush
@@ -209,11 +209,11 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: ci-secret-hcp-terraform-github-management
-  title: /ci-secrets/hcp-terraform/github-management
+  name: secret-hcp-terraform-github-management
+  title: /secrets/hcp-terraform/github-management
   description: HCP Terraform の Team token（owners）。github-management の Terraform が state に入るのに使う
   annotations:
-    backstage.io/techdocs-ref: dir:./ci-secrets/hcp-terraform/github-management
+    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/github-management
 spec:
   type: ssm-parameter
   owner: user:boykush

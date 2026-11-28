@@ -14,7 +14,7 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
   | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
   | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「CI の token」） | Parameter Store（`/ci-secrets/hcp-terraform/<repo>`） | — |
+  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「CI の token」） | Parameter Store（`/secrets/hcp-terraform/<repo>`） | — |
   | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
@@ -108,9 +108,9 @@ gh secret set DIGITALOCEAN_ACCESS_TOKEN
 gh secret set CLOUDFLARE_API_TOKEN
 ```
 
-HCP の token は Parameter Store の `/ci-secrets/hcp-terraform/<repo>` に置く。parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs（`ci-secrets/<発行元>/<名前>/`）が人向けの手順を持つ。人にはそのページを渡す。値は `mise run ci:secret hcp-terraform/<repo>` で書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_ci_secrets` と `var.ci_secret_readers` が持つ。
+HCP の token は Parameter Store の `/secrets/hcp-terraform/<repo>` に置く。parameter は1件ずつ catalog の Resource（type `ssm-parameter`、title が parameter のパス）になっていて、その TechDocs（`parameters/secrets/<発行元>/<名前>/`）が人向けの手順を持つ。人にはそのページを渡す。値は `mise run secret:write hcp-terraform/<repo>` で書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_secrets` と `var.secret_readers` が持つ。
 
-- `/ci-secrets` に parameter を増やすときは、`catalog-info.yaml` の Resource と `ci-secrets/` の TechDocs も足す。消すときも同じ。
+- `/secrets` に parameter を増やすときは、`catalog-info.yaml` の Resource と `parameters/` の TechDocs も足す。消すときも同じ。
 
 - Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
 - DO の PAT を替えたら、手元の `doctl auth init` もやり直してもらう。
