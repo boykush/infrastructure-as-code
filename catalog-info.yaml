@@ -188,13 +188,13 @@ spec:
   system: runtime
 ---
 # One Resource per parameter in Parameter Store, so the catalog filtered to type
-# ssm-parameter lists them; the title is the path, the name <service>-<what it is>.
+# ssm-parameter lists them; the title is the path, the name <issuing SaaS>-<purpose>-<value>.
 # Each has TechDocs for a person (issue, write, check, retire) under
 # parameters/<path>/; who reads it stays with its owner.
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: claude-code-oauth-token
+  name: claude-code-actions-oauth-token
   title: /claude-code/oauth-token
   description: >-
     Claude Code Actions の OAuth token。claude_code_repositories の repo の workflow が run の OIDC で読む。有効期間は1年
@@ -210,7 +210,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: image-updater-github-app-id
+  name: github-image-updater-app-id
   title: /cluster-secrets/argocd/image-updater-git-creds/githubAppID
   description: >-
     image-updater-app の App ID（数値）。Secret argocd/image-updater-git-creds に入る
@@ -226,7 +226,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: image-updater-github-app-installation-id
+  name: github-image-updater-installation-id
   title: /cluster-secrets/argocd/image-updater-git-creds/githubAppInstallationID
   description: >-
     image-updater-app の Installation ID。Secret argocd/image-updater-git-creds に入る
@@ -242,7 +242,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: image-updater-github-app-private-key
+  name: github-image-updater-private-key
   title: /cluster-secrets/argocd/image-updater-git-creds/githubAppPrivateKey
   description: >-
     image-updater-app の private key。Image Updater が main へ書き戻すときに署名する
@@ -258,7 +258,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: backstage-github-app-private-key
+  name: github-backstage-catalog-private-key
   title: /cluster-secrets/backstage/backstage-github-app/privateKey
   description: >-
     repo-reader-app の private key。Backstage が各 repo の catalog-info.yaml を読むときに署名する
@@ -274,7 +274,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: cloudflared-tunnel-token
+  name: cloudflare-tunnel-token
   title: /cluster-secrets/cloudflared/cloudflared-tunnel-token/token
   description: >-
     cloudflared が Cloudflare Tunnel に繋ぐ token。tunnel を作り直したときだけ変わる
@@ -290,7 +290,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: finlake-r2-access-key-id
+  name: cloudflare-finlake-r2-access-key-id
   title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ACCESS_KEY_ID
   description: >-
     finlake の R2 API token の Access Key ID。sync と mcp が読む。SECRET_ACCESS_KEY と対で替わる
@@ -306,7 +306,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: finlake-r2-endpoint
+  name: cloudflare-finlake-r2-endpoint
   title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_ENDPOINT
   description: >-
     finlake が R2 に繋ぐ S3 エンドポイント。秘密ではないが account id を git に置かないためここにある
@@ -322,7 +322,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: finlake-r2-secret-access-key
+  name: cloudflare-finlake-r2-secret-access-key
   title: /cluster-secrets/finlake/finlake-r2-sync/FINLAKE_S3_SECRET_ACCESS_KEY
   description: >-
     finlake の R2 API token の Secret Access Key。ACCESS_KEY_ID と対で替わる
@@ -338,7 +338,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: external-secrets-access-key-id
+  name: aws-external-secrets-access-key-id
   title: /external-secrets/access-key-id
   description: >-
     External Secrets Operator が Parameter Store を読む IAM access key の ID。secret-access-key と対で替わる
@@ -354,7 +354,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: external-secrets-secret-access-key
+  name: aws-external-secrets-secret-access-key
   title: /external-secrets/secret-access-key
   description: >-
     External Secrets Operator の IAM access key の secret。access-key-id と対で替わる
