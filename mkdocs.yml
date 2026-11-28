@@ -4,6 +4,5 @@ site_name: infrastructure-as-code
 docs_dir: docs
 nav:
   - 人が行う作業: index.md
-  - HCP Terraform の API token: hcp-terraform-token.md
 plugins:
   - techdocs-core

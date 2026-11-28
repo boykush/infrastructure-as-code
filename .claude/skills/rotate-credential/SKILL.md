@@ -14,7 +14,7 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | Claude Code のトークン | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store | — |
   | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
   | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token（repo ごと） | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store（`/secrets/hcp-terraform/<repo>`） | — |
+  | HCP Terraform の API token（全 repo 共通） | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store（`/secrets/hcp-terraform/owners`） | — |
   | finlake の R2 token | 鍵ごとの TechDocs（下の「Parameter Store の鍵」） | Parameter Store | 鍵ごとの TechDocs |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
@@ -50,7 +50,7 @@ gh secret set DIGITALOCEAN_ACCESS_TOKEN
 gh secret set CLOUDFLARE_API_TOKEN
 ```
 
-HCP の token は Parameter Store の `/secrets/hcp-terraform/<repo>` にあり、手順は上の「Parameter Store の鍵」のとおり鍵ごとの TechDocs が持つ。値は `mise run secret:write hcp-terraform/<repo>` で書く。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_secrets` と `var.secret_readers` が持つ。
+HCP の token は全 repo で1本で、Parameter Store の `/secrets/hcp-terraform/owners` にあり、手順は上の「Parameter Store の鍵」のとおり鍵ごとの TechDocs が持つ。値は `mise run secret:write hcp-terraform/owners` で書く。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_secrets` と `var.secret_readers` が持つ。
 
 - Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
 - DO の PAT を替えたら、手元の `doctl auth init` もやり直してもらう。

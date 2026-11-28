@@ -370,28 +370,12 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: hcp-terraform-infrastructure-as-code-team-token
-  title: /secrets/hcp-terraform/infrastructure-as-code
+  name: hcp-terraform-owners-team-token
+  title: /secrets/hcp-terraform/owners
   description: >-
-    HCP Terraform の Team token（owners）。infrastructure-as-code の Terraform が state に入るのに使う
+    HCP Terraform の owners team の Team token。infrastructure-as-code と github-management の Terraform が state に入るのに使う
   annotations:
-    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/infrastructure-as-code
-spec:
-  type: ssm-parameter
-  owner: user:boykush
-  system: runtime
-  dependsOn:
-    - resource:aws-parameter-store
----
-apiVersion: backstage.io/v1alpha1
-kind: Resource
-metadata:
-  name: hcp-terraform-github-management-team-token
-  title: /secrets/hcp-terraform/github-management
-  description: >-
-    HCP Terraform の Team token（owners）。github-management の Terraform が state に入るのに使う
-  annotations:
-    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/github-management
+    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/owners
 spec:
   type: ssm-parameter
   owner: user:boykush
