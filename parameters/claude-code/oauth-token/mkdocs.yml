@@ -1,0 +1,4 @@
+# TechDocs of the Resource for /claude-code/oauth-token (catalog-info.yaml).
+site_name: /claude-code/oauth-token
+plugins:
+  - techdocs-core
