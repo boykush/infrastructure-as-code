@@ -91,6 +91,14 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
 
+      # The HCP token the `cloud` block authenticates with sits in Parameter
+      # Store, not a repository secret: the role above may read it
+      # (terraform/aws.tf), and `mise run secret:write` writes it.
+      - name: Read the secrets
+        run: >-
+          mise run secret:export
+          TF_TOKEN_app_terraform_io=hcp-terraform/owners
+
       # Posts terraform plan/apply results as a PR comment (no github-script).
       - name: Install tfcmt
         env:
@@ -105,10 +113,6 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform Init
-        env:
-          # Authenticates the `cloud` block against HCP Terraform (replaces
-          # setup-terraform's cli_config_credentials_token).
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
         run: terraform init -input=false
 
       - name: Terraform Validate
@@ -117,7 +121,6 @@ jobs:
       - name: Terraform Plan
         if: github.event_name == 'pull_request'
         env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +131,6 @@ jobs:
       - name: Terraform Apply
         if: github.event_name == 'push'
         env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

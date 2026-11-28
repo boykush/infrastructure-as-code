@@ -84,6 +84,7 @@ boykush の個人アプリケーションを載せる Kubernetes 基盤の IaC �
 ## AWS の認証情報（`terraform/aws.tf`）
 
 - **AWS に置くのは、organization secret が無いから**。`boykush` は User アカウントなので、repo secret だと同じ資格情報を repo の数だけ置いて入れ替えることになる。各 repo の workflow は run の OIDC で読み、GitHub に長命な秘密は残らない。ただし run 中は runner に値が載るので、run 中に漏れるリスクは repo secret と変わらない。
+- **資格情報は `/secrets/<発行元>/<名前>` に置く**。名前は読む側ではなく資格情報（権限の束）で付ける。CI も手元も同じ parameter を読むので、パスに `ci` のような読む側の名前を入れない。誰が読めるかは `local.terraform_secrets` と `var.secret_readers` の role が持ち、workflow は `mise run secret:export` で読む。
 - **トークンは Terraform の resource にしない**。`aws_ssm_parameter` は refresh で値を読み戻すので、resource にすると HCP の state に平文が載る。Terraform が持つのは OIDC provider・role・権限だけで、parameter への書き込みは `mise run claude:token` が担う。`terraform plan` には parameter が存在するかどうかも出ない——空なら composite action が実行時に落ちる。
 - **トークンに改行を混ぜない**。`::add-mask::` は行単位に効くので、改行が残ると**2行目が public repo のログに出る**——一度踏んだ。`mise run claude:token` が空白を落とすのはこのため。
 - **repo を足す操作は `claude_code_repositories` に1行**。trust policy の `sub` がそこから組まれる（`repo:<owner>/<repo>:*`）。`repo:<owner>/*` に広げてはいけない——以後その owner が作る repo すべてがトークンを読めるようになる。

@@ -366,3 +366,19 @@ spec:
   system: runtime
   dependsOn:
     - resource:aws-parameter-store
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: hcp-terraform-owners-team-token
+  title: /secrets/hcp-terraform/owners
+  description: >-
+    HCP Terraform の owners team の Team token。infrastructure-as-code と github-management の Terraform が state に入るのに使う
+  annotations:
+    backstage.io/techdocs-ref: dir:./parameters/secrets/hcp-terraform/owners
+spec:
+  type: ssm-parameter
+  owner: user:boykush
+  system: runtime
+  dependsOn:
+    - resource:aws-parameter-store
