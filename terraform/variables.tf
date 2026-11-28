@@ -203,27 +203,39 @@ variable "claude_code_repositories" {
   }
 }
 
-variable "hcp_terraform_parameter_path" {
+variable "ci_secrets_parameter_path" {
   type        = string
-  description = "Parameter Store path holding each repository's HCP Terraform API token, as <path>/<repository>. The values are written with `mise run hcp:token`, never by Terraform."
-  default     = "/hcp-terraform"
+  description = "Parameter Store path holding the credentials workflows run with, as <path>/<issuer>/<name> (e.g. digitalocean/infrastructure-as-code). The values are written with `mise run ci:secret`, never by Terraform."
+  default     = "/ci-secrets"
 
   validation {
-    condition     = startswith(var.hcp_terraform_parameter_path, "/") && !endswith(var.hcp_terraform_parameter_path, "/")
-    error_message = "hcp_terraform_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
+    condition     = startswith(var.ci_secrets_parameter_path, "/") && !endswith(var.ci_secrets_parameter_path, "/")
+    error_message = "ci_secrets_parameter_path must start with a slash and not end with one: the ARN is built by appending it to :parameter."
   }
 }
 
-variable "hcp_terraform_repositories" {
-  type        = list(string)
-  description = "Repositories other than this one whose CI reads its own HCP Terraform API token from Parameter Store, each through a role of its own. This repository reads its token with the role it applies with."
-  default = [
-    "github-management",
-  ]
-
-  validation {
-    condition     = length(var.hcp_terraform_repositories) == length(distinct(var.hcp_terraform_repositories))
-    error_message = "Each repository can appear once."
+variable "ci_secret_readers" {
+  type = map(object({
+    repository = string
+    # Trust main only. Right for anything that runs on schedule or dispatch; a
+    # reader a pull request needs (a plan) must leave it false.
+    main_only = bool
+    # Names under ci_secrets_parameter_path.
+    secrets = list(string)
+  }))
+  description = "Workflows other than this repository's Terraform that read CI secrets, each through a role of its own named github-actions-ci-secrets-<key>. This repository's Terraform reads with the role it applies with."
+  default = {
+    github-management-terraform = {
+      repository = "github-management"
+      main_only  = false
+      secrets    = ["hcp-terraform/github-management"]
+    }
+    # Node Pool Park / Resume / Status and finlake sync.
+    infrastructure-as-code-doctl = {
+      repository = "infrastructure-as-code"
+      main_only  = true
+      secrets    = ["digitalocean/infrastructure-as-code"]
+    }
   }
 }
 

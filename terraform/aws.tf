@@ -14,11 +14,19 @@ locals {
 
   claude_code_parameter_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.claude_code_parameter_name}"
 
-  # One parameter per repository, so a run reads its own token and no other.
-  hcp_terraform_parameter_arns = {
-    for repository in concat([local.terraform_repository], var.hcp_terraform_repositories) :
-    repository => "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.hcp_terraform_parameter_path}/${repository}"
-  }
+  # A CI secret is one parameter, named after what issued it and the permissions it
+  # carries, not after who reads it: every reader of the same credential reads the
+  # same parameter. Who may read which is declared below, per role.
+  ci_secret_arn = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.ci_secrets_parameter_path}"
+
+  # What this repository's Terraform runs with, read by the role it applies with.
+  terraform_ci_secrets = [
+    "hcp-terraform/infrastructure-as-code",
+    "digitalocean/infrastructure-as-code",
+    "cloudflare/infrastructure-as-code",
+    "access/github-client-secret",
+    "access/owner-email",
+  ]
 
   # Both are paths, so what a policy names is everything under them.
   cluster_secrets_parameters_arn             = "arn:aws:ssm:${var.aws_region}:${local.aws_account_id}:parameter${var.cluster_secrets_parameter_path}/*"
@@ -31,7 +39,7 @@ locals {
   external_secrets_user_name = "external-secrets"
   budget_name                = "monthly"
   github_app_role_names      = { for app in var.github_apps : app.name => "github-actions-github-app-${app.name}" }
-  hcp_terraform_role_names   = { for repository in var.hcp_terraform_repositories : repository => "github-actions-hcp-terraform-${repository}" }
+  ci_secrets_role_names      = { for name, reader in var.ci_secret_readers : name => "github-actions-ci-secrets-${name}" }
 
   # GitHub puts immutable ids in the sub claim for repositories created after
   # 2026-07-15, and for older ones once they opt in. Both spellings are listed
@@ -345,6 +353,13 @@ data "aws_iam_policy_document" "external_secrets_credential" {
     actions   = ["ssm:GetParameter"]
     resources = [local.external_secrets_credential_parameters_arn]
   }
+
+  # The DO token the workflow fetches its kubeconfig with.
+  statement {
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = ["${local.ci_secret_arn}/digitalocean/infrastructure-as-code"]
+  }
 }
 
 resource "aws_iam_role" "external_secrets_credential" {
@@ -406,17 +421,17 @@ data "aws_iam_policy_document" "terraform" {
       "arn:aws:iam::${local.aws_account_id}:role/${local.external_secrets_role_name}",
       "arn:aws:iam::${local.aws_account_id}:user/${local.external_secrets_user_name}",
       ], [
-      for name in concat(values(local.github_app_role_names), values(local.hcp_terraform_role_names)) :
+      for name in concat(values(local.github_app_role_names), values(local.ci_secrets_role_names)) :
       "arn:aws:iam::${local.aws_account_id}:role/${name}"
     ])
   }
 
-  # This repository's own HCP Terraform token, which the workflow reads before
-  # `terraform init` (the rest of the role is for applying).
+  # The credentials the workflow reads before `terraform init`: the HCP token and
+  # the providers' tokens (the rest of the role is for applying).
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [local.hcp_terraform_parameter_arns[local.terraform_repository]]
+    resources = [for name in local.terraform_ci_secrets : "${local.ci_secret_arn}/${name}"]
   }
 
   # Neither of these names a resource: the key does not exist yet when it is
@@ -509,12 +524,12 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
-# The HCP Terraform API token another repository's CI reaches its state with.
-# One role per repository, each reading only its own parameter, so a token that
-# leaks or expires touches one repository. Runs of every ref are trusted: a pull
-# request's plan reads the state as much as the apply after merge does.
-data "aws_iam_policy_document" "hcp_terraform_trust" {
-  for_each = toset(var.hcp_terraform_repositories)
+# The readers of CI secrets that are not this repository's Terraform: one role
+# each, trusted for one repository and reading only the parameters listed for it.
+# A reader that runs on main alone (schedules, dispatches) is trusted on main
+# alone, so a pull request's code cannot read what it never needs.
+data "aws_iam_policy_document" "ci_secrets_trust" {
+  for_each = var.ci_secret_readers
 
   statement {
     effect  = "Allow"
@@ -535,40 +550,40 @@ data "aws_iam_policy_document" "hcp_terraform_trust" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:${var.github_owner}/${each.key}:*",
-        "repo:${var.github_owner}@${var.github_owner_id}/${each.key}@*:*",
+        "repo:${var.github_owner}/${each.value.repository}:${each.value.main_only ? "ref:refs/heads/main" : "*"}",
+        "repo:${var.github_owner}@${var.github_owner_id}/${each.value.repository}@*:${each.value.main_only ? "ref:refs/heads/main" : "*"}",
       ]
     }
   }
 }
 
 # The parameters are not resources, for the same reason as the Claude Code token.
-data "aws_iam_policy_document" "hcp_terraform" {
-  for_each = toset(var.hcp_terraform_repositories)
+data "aws_iam_policy_document" "ci_secrets" {
+  for_each = var.ci_secret_readers
 
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [local.hcp_terraform_parameter_arns[each.key]]
+    resources = [for name in each.value.secrets : "${local.ci_secret_arn}/${name}"]
   }
 }
 
-resource "aws_iam_role" "hcp_terraform" {
-  for_each = toset(var.hcp_terraform_repositories)
+resource "aws_iam_role" "ci_secrets" {
+  for_each = var.ci_secret_readers
 
   # Same ordering as the GitHub App roles: iam:CreateRole on this ARN is granted
   # by the policy update in this apply.
   depends_on = [aws_iam_role_policy.terraform]
 
-  name               = local.hcp_terraform_role_names[each.key]
-  description        = "Read ${each.key}'s HCP Terraform API token from Parameter Store, for its CI"
-  assume_role_policy = data.aws_iam_policy_document.hcp_terraform_trust[each.key].json
+  name               = local.ci_secrets_role_names[each.key]
+  description        = "Read ${join(", ", each.value.secrets)} from Parameter Store, for ${each.value.repository}'s CI"
+  assume_role_policy = data.aws_iam_policy_document.ci_secrets_trust[each.key].json
 }
 
-resource "aws_iam_role_policy" "hcp_terraform" {
-  for_each = aws_iam_role.hcp_terraform
+resource "aws_iam_role_policy" "ci_secrets" {
+  for_each = aws_iam_role.ci_secrets
 
-  name   = "read-hcp-terraform-token"
+  name   = "read-ci-secrets"
   role   = each.value.id
-  policy = data.aws_iam_policy_document.hcp_terraform[each.key].json
+  policy = data.aws_iam_policy_document.ci_secrets[each.key].json
 }
