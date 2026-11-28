@@ -8,9 +8,9 @@ Error: Failed to read organization "boykush" at host app.terraform.io
 Encountered an unexpected error while reading the organization settings: unauthorized
 ```
 
-token は repo ごとに分け、AWS の Parameter Store に `/hcp-terraform/<repo>` として置く。workflow が自分の repo の分を
-読み、`TF_TOKEN_app_terraform_io` として渡す。どの repo が読めるかは `terraform/aws.tf` と
-`terraform/variables.tf` の `hcp_terraform_repositories` が持つ。
+token は repo ごとに分け、AWS の Parameter Store に `/ci-secrets/hcp-terraform/<repo>` として置く。workflow が自分の
+repo の分を読み、`TF_TOKEN_app_terraform_io` として渡す。どの workflow が読めるかは `terraform/aws.tf` の
+`local.terraform_ci_secrets` と、`terraform/variables.tf` の `ci_secret_readers` が持つ。
 
 期限の 30 日前と 7 日前に、HCP Terraform から通知のメールが来る。期限は作った後から延ばせないので、入れ替えは
 新しい token を作ることになる。
@@ -22,7 +22,7 @@ token は repo ごとに分け、AWS の Parameter Store に `/hcp-terraform/<re
 
 1. HCP Terraform の Organization `boykush` で、**Settings → API tokens → Team Tokens** タブを開く。
 2. `owners` team の token を新しく作る。
-   - **Description は必ず付ける**（例: `infrastructure-as-code CI`）。Description の無い token は legacy token
+   - **Description は必ず付ける**。token を使う repo の名前にする（例: `infrastructure-as-code`）。Description の無い token は legacy token
      として扱われ、team に1つしか持てない。新しく legacy token を作ると、前の legacy token が無効になる。
    - 期限（Expiration）を付ける。
 3. 表示された値をコピーする。**値は作成時の1回しか表示されない。**
@@ -39,7 +39,7 @@ mise exec -- aws sts get-caller-identity   # account id が返れば通ってい
 値は端末に表示させず、プロンプトに貼り付けて Ctrl-D で入れる。`<repo>` は token を使う repo の名前。
 
 ```sh
-mise run hcp:token <repo>
+mise run ci:secret hcp-terraform/<repo>
 ```
 
 ## 3. 確かめる

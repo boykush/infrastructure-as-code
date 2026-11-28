@@ -20,6 +20,9 @@ jobs:
     # only a run the owner started is allowed to touch the household ledger.
     if: github.triggering_actor == 'boykush'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # assume the role that reads the DO token, see below
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -30,11 +33,21 @@ jobs:
       - name: Setup mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
 
+      # The DO token sits in Parameter Store, not a repository secret. The role
+      # may read that one parameter and trusts this repository's main alone
+      # (ci_secret_readers in terraform/aws.tf); `mise run ci:secret` writes it.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: arn:aws:iam::509266991346:role/github-actions-ci-secrets-infrastructure-as-code-doctl
+
+      - name: Read the DO token
+        run: mise run ci:read-secrets DIGITALOCEAN_ACCESS_TOKEN=digitalocean/infrastructure-as-code
+
       # Outlives the wait below (the Job's activeDeadlineSeconds plus slack),
       # so the logs can still be read after a Job that ran to its deadline.
       - name: Fetch kubeconfig
-        env:
-          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           doctl kubernetes cluster kubeconfig save boykush-cluster --expiry-seconds 900

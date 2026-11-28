@@ -12,9 +12,9 @@ description: 資格情報を入れる・入れ替える。Claude Code のトー�
   | 値 | 発行する場所 | 置き場 | 要る権限 |
   | --- | --- | --- | --- |
   | Claude Code のトークン | `claude setup-token`（有効期間は1年） | Parameter Store | — |
-  | DO の PAT | DO のコントロールパネル | repo secret `DIGITALOCEAN_ACCESS_TOKEN` | `terraform/providers.tf` のコメント |
-  | Cloudflare の API token | Cloudflare のダッシュボード | repo secret `CLOUDFLARE_API_TOKEN` | `terraform/providers.tf` のコメント |
-  | HCP Terraform の API token（repo ごと） | HCP Terraform（画面の手順は `docs/hcp-terraform-token.md`） | Parameter Store（`/hcp-terraform/<repo>`） | — |
+  | DO の PAT | DO のコントロールパネル | Parameter Store（`/ci-secrets/digitalocean/infrastructure-as-code`） | `terraform/providers.tf` のコメント |
+  | Cloudflare の API token | Cloudflare のダッシュボード | Parameter Store（`/ci-secrets/cloudflare/infrastructure-as-code`） | `terraform/providers.tf` のコメント |
+  | HCP Terraform の API token（repo ごと） | HCP Terraform（画面の手順は `docs/hcp-terraform-token.md`） | Parameter Store（`/ci-secrets/hcp-terraform/<repo>`） | — |
   | finlake の R2 token | Cloudflare のダッシュボード（R2 → Manage API tokens） | Parameter Store | 下の「finlake の R2 token」 |
 
 - 期限の無いもの（GitHub App の鍵、Access のログインに使う OAuth App の Client secret、tunnel token、External Secrets Operator の access key）は、漏れたときと元を作り直したときだけ入れ替える。
@@ -101,21 +101,17 @@ mise exec -- aws ssm get-parameter --region ap-northeast-1 --name /claude-code/o
 
 ## CI の token（DO・Cloudflare・HCP）
 
-人間に頼む：各コンソールで発行し直す。要る権限は `terraform/providers.tf` のコメント（DO・Cloudflare）にある。そのうえで値を入れる。DO と Cloudflare は repo secret に入れる。
+人間に頼む：各コンソールで発行し直す。要る権限は `terraform/providers.tf` のコメント（DO・Cloudflare）、HCP の手順は `docs/hcp-terraform-token.md` にある。token の名前（Description）は、置き場所ではなく権限の束で付ける（例: `infrastructure-as-code`。CI と手元が同じ token を読むので `CI` を付けない）。
+
+値は Parameter Store の `/ci-secrets/<発行元>/<名前>` に書く（先に `mise exec -- aws login`）。どの workflow が読めるかは `terraform/aws.tf` の `local.terraform_ci_secrets` と `var.ci_secret_readers` が持つ。
 
 ```sh
-gh secret set DIGITALOCEAN_ACCESS_TOKEN
-gh secret set CLOUDFLARE_API_TOKEN
+mise run ci:secret digitalocean/infrastructure-as-code
+mise run ci:secret cloudflare/infrastructure-as-code
+mise run ci:secret hcp-terraform/<repo>
 ```
 
-HCP は repo ごとに token を分け、Parameter Store に書く（先に `mise exec -- aws login`）。発行の手順は `docs/hcp-terraform-token.md`。
-
-```sh
-mise run hcp:token <repo>
-```
-
-- Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は secret を触らず、次の plan が通るかで確かめる。
-- DO の PAT を替えたら、手元の `doctl auth init` もやり直してもらう。
+- Cloudflare は、既存の token の期限や権限を編集するだけなら値は変わらないはず。その場合は parameter を触らず、次の plan が通るかで確かめる。
 - 入れた後、PR の `terraform plan` が通ることと、夜間停止の次の run が通ることを確かめる。DO の PAT が切れると resume が失敗し、クラスタが止まったまま戻らない。
 
 ## External Secrets Operator の access key
@@ -133,6 +129,6 @@ gh workflow run external-secrets-credential.yml
 
 Backstage・Argo CD・Jaeger と非公開の MCP の前段にある Access は、owner の OAuth App で GitHub ログインする。GitHub には OAuth App を作る API が無いので、人間に頼む。
 
-- 作り方：Settings → Developer settings → OAuth Apps。Homepage URL は `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL は `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback`。Client ID は `terraform/access.tf` に書き、Client secret は repo secret `ACCESS_GITHUB_CLIENT_SECRET`（CI が `TF_VAR_access_github_client_secret` で渡す）。
-- Client secret を替えるとき：OAuth App に新しい secret を足し、`ACCESS_GITHUB_CLIENT_SECRET` を差し替え、次の apply で Cloudflare に届いてから古い方を消す。
-- 通すメールアドレスは repo secret `ACCESS_OWNER_EMAIL`（public repo に置かない）。照合相手は GitHub がログインしたアカウントについて返すアドレスで、Zero Trust ダッシュボードの GitHub のログイン方法で Test を押すと見られる。
+- 作り方：Settings → Developer settings → OAuth Apps。Homepage URL は `https://boykush-zt.cloudflareaccess.com`、Authorization callback URL は `https://boykush-zt.cloudflareaccess.com/cdn-cgi/access/callback`。Client ID は `terraform/access.tf` に書き、Client secret は `mise run ci:secret access/github-client-secret` で書く（CI が `TF_VAR_access_github_client_secret` で渡す）。
+- Client secret を替えるとき：OAuth App に新しい secret を足し、`access/github-client-secret` を書き直し、次の apply で Cloudflare に届いてから古い方を消す。
+- 通すメールアドレスは `mise run ci:secret access/owner-email` で書く（public repo に置かない）。照合相手は GitHub がログインしたアカウントについて返すアドレスで、Zero Trust ダッシュボードの GitHub のログイン方法で Test を押すと見られる。
